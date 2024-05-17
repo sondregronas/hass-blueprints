@@ -1,0 +1,56 @@
+# https://github.com/zigpy/zha-device-handlers/issues/940#issuecomment-1001107154
+blueprint:
+  name: Aqara H1 Switch (ZHA)
+  description: |
+      Blueprint to integrate the Aqara H1 Switch (Zigbee) with Home Assistant.
+      Activate a scene or toggle a light when a button is pressed.
+
+  domain: automation
+  source_urL: https://github.com/SondreGronas/hass-blueprints/blob/main/devices/Aqara%20H1%20Switch%20ZHA.yaml
+  input:
+    switch:
+      name: Aqara H1 Switch
+      description: The Aqara H1 Switch device.
+      selector:
+        device:
+          model: lumi.remote.b28ac1
+    area:
+      name: Area
+      description: The area to control.
+      selector:
+        area: {}
+
+    left_1x:
+      name: Left Button 1x
+      description: Action to run on left button press. If not set, the light with the same area name will be toggled.
+      selector:
+        action: {}
+
+  mode: restart
+  max_exceeded: silent
+
+  trigger:
+    platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input switch
+
+  variables:
+    command: "{{ trigger.event.data.command }}"
+    args: "{{ trigger.event.data.args }}"
+
+    switch: !input switch
+    area: !input area
+    left_1x: |
+      {% if !input left_1x %}
+      !input left_1x
+      {% else %}
+        service: light.toggle
+        target:
+          entity_id: light.{{ area }}
+      {% endif %}
+
+  action:
+    - choose:
+        - conditions: "{{ command == '1_single' }}"
+          sequence: {{ left_1x }}
