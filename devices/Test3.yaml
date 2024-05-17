@@ -6,7 +6,7 @@ blueprint:
       Activate a scene or toggle a light when a button is pressed.
 
   domain: automation
-  source_urL: https://github.com/SondreGronas/hass-blueprints/blob/main/devices/Aqara%20H1%20Switch%20ZHA.yaml
+  source_url: https://github.com/SondreGronas/hass-blueprints/blob/main/devices/Aqara%20H1%20Switch%20ZHA.yaml
   input:
     switch:
       name: Aqara H1 Switch
