@@ -23,6 +23,7 @@ blueprint:
     left_1x:
       name: Left Button 1x
       description: Action to run on left button press. If not set, the light with the same area name will be toggled.
+      default: {}
       selector:
         action: {}
 
