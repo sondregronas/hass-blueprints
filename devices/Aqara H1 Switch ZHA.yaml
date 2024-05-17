@@ -61,7 +61,19 @@ blueprint:
         selector:
             action: {}
 
+  mode: restart
+  max_exceeded: silent
+
+  trigger:
+    platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input switch
+
   variables:
+    command: "{{ trigger.event.data.command }}"
+    args: "{{ trigger.event.data.args }}"
+
     switch: !input switch
     area: !input area
     left_1x: > 
@@ -101,19 +113,7 @@ blueprint:
     right_3x: !input right_3x
     right_hold: !input right_hold
 
-  mode: restart
-  max_exceeded: silent
-
-  trigger:
-    platform: event
-    event_type: zha_event
-    event_data:
-      device_id: !input switch
-
   action:
-    - variables:
-        command: "{{ trigger.event.data.command }}"
-        args: "{{ trigger.event.data.args }}"
     - choose:
         - conditions: "{{ command == '1_single' }}"
           sequence: !input left_1x
