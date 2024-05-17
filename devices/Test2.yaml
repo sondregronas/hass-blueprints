@@ -26,34 +26,34 @@ blueprint:
       selector:
         action: {}
 
-  mode: restart
-  max_exceeded: silent
+variables:
+  command: "{{ trigger.event.data.command }}"
+  args: "{{ trigger.event.data.args }}"
 
-  trigger:
-    platform: event
-    event_type: zha_event
-    event_data:
-      device_id: !input switch
+  switch: !input switch
+  area: !input area
+  left_1x: !input left_1x #|
+  #  {% if !input left_1x %}
+  #  !input left_1x
+  #  {% else %}
+  #    service: light.toggle
+  #    target:
+  #      entity_id: light.{{ area }}
+  #  {% endif %}
 
-  variables:
-    command: "{{ trigger.event.data.command }}"
-    args: "{{ trigger.event.data.args }}"
+mode: restart
+max_exceeded: silent
 
-    switch: !input switch
-    area: !input area
-    left_1x: !input left_1x #|
-    #  {% if !input left_1x %}
-    #  !input left_1x
-    #  {% else %}
-    #    service: light.toggle
-    #    target:
-    #      entity_id: light.{{ area }}
-    #  {% endif %}
+trigger:
+  platform: event
+  event_type: zha_event
+  event_data:
+    device_id: !input switch
 
-  action:
-    - alias: "Test"
-      choose: []
-      default: !input left_1x
-    #- choose:
-    #    - conditions: "{{ command == '1_single' }}"
-    #      default: !input left_1x
+action:
+  - alias: "Test"
+    choose: []
+    default: !input left_1x
+  #- choose:
+  #    - conditions: "{{ command == '1_single' }}"
+  #      default: !input left_1x
