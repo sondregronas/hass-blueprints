@@ -134,7 +134,7 @@ action:
       default:
         - service: light.turn_on
           target:
-            entity_id: light.{{ area | lower }}
+            entity_id: light.{{ area | lower | replace(' ', '_') }}
   - conditions: "{{ command == '1_double' }}"
     sequence:
     - choose:
@@ -143,7 +143,7 @@ action:
       default:
         - service: scene.turn_on
           target:
-            entity_id: scene.{{ area | lower }}_bright
+            entity_id: scene.{{ area | lower | replace(' ', '_') }}_bright
   - conditions: "{{ command == '1_triple' }}"
     sequence: !input left_3x
   - conditions: "{{ command == '1_hold' }}"
@@ -159,7 +159,7 @@ action:
       default:
         - service: light.turn_off
           target:
-            entity_id: light.{{ area | lower }}
+            entity_id: light.{{ area | lower | replace(' ', '_') }}
   - conditions: "{{ command == '2_double' }}"
     sequence:
     - choose:
@@ -168,7 +168,7 @@ action:
       default:
         - service: scene.turn_on
           target:
-            entity_id: scene.{{ area | lower }}_dim
+            entity_id: scene.{{ area | lower | replace(' ', '_') }}_dim
   - conditions: "{{ command == '2_triple' }}"
     sequence: !input right_3x
   - conditions: "{{ command == '2_hold' }}"
