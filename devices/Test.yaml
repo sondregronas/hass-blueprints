@@ -51,6 +51,9 @@ blueprint:
     #  {% endif %}
 
   action:
-    - choose:
-        - conditions: "{{ command == '1_single' }}"
-          sequence: !input left_1x
+    - alias: "Test"
+      choose: []
+      default: !input left_1x
+    #- choose:
+    #    - conditions: "{{ command == '1_single' }}"
+    #      default: !input left_1x
