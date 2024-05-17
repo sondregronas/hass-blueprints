@@ -54,6 +54,3 @@ blueprint:
     - choose:
         - conditions: "{{ command == '1_single' }}"
           sequence: !input left_1x
-            #- service: {{ left_1x.service }}
-            #  target: {{ left_1x.target }}
-            #  data: {{ left_1x.data }}
