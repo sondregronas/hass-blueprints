@@ -32,14 +32,14 @@ variables:
 
   switch: !input switch
   area: !input area
-  left_1x: !input left_1x #|
-  #  {% if !input left_1x %}
-  #  !input left_1x
-  #  {% else %}
-  #    service: light.toggle
-  #    target:
-  #      entity_id: light.{{ area }}
-  #  {% endif %}
+  left_1x: |
+    {% if !input left_1x %}
+    !input left_1x
+    {% else %}
+      service: light.toggle
+      target:
+        entity_id: light.{{ area }}
+    {% endif %}
 
 mode: restart
 max_exceeded: silent
@@ -53,7 +53,7 @@ trigger:
 action:
   - alias: "Test"
     choose: []
-    default: !input left_1x
+    default: {{ left_1x }}
   #- choose:
   #    - conditions: "{{ command == '1_single' }}"
   #      default: !input left_1x
