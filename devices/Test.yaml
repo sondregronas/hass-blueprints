@@ -41,14 +41,14 @@ blueprint:
 
     switch: !input switch
     area: !input area
-    left_1x: |
-      {% if !input left_1x %}
-      !input left_1x
-      {% else %}
-        service: light.toggle
-        target:
-          entity_id: light.{{ area }}
-      {% endif %}
+    left_1x: !input left_1x #|
+    #  {% if !input left_1x %}
+    #  !input left_1x
+    #  {% else %}
+    #    service: light.toggle
+    #    target:
+    #      entity_id: light.{{ area }}
+    #  {% endif %}
 
   action:
     - choose:
