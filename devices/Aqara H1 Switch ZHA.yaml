@@ -3,10 +3,10 @@ blueprint:
   name: Aqara H1 Switch (ZHA)
   description: |
       Blueprint to integrate the Aqara H1 Switch (Zigbee) with Home Assistant.
-      Activate a scene or toggle a light when a button is pressed.
+      Run actions on button presses.
 
   domain: automation
-  source_urL: https://github.com/SondreGronas/hass-blueprints/blob/main/devices/Aqara%20H1%20Switch%20ZHA.yaml
+  source_url: https://github.com/SondreGronas/hass-blueprints/blob/main/devices/Aqara%20H1%20Switch%20ZHA.yaml
   input:
     switch:
       name: Aqara H1 Switch
@@ -23,111 +23,161 @@ blueprint:
     left_1x:
       name: Left Button 1x
       description: Action to run on left button press. If not set, the light with the same area name will be toggled.
+      default:
       selector:
         action: {}
     left_2x:
       name: Left Button 2x
       description: Action to run on left button double press. If not set, the scene "<area name> Bright" will be activated.
+      default:
       selector:
         action: {}
     left_3x:
-        name: Left Button 3x
-        description: Action to run on left button triple press.
-        selector:
-            action: {}
+      name: Left Button 3x
+      description: Action to run on left button triple press.
+      default:
+      selector:
+          action: {}
     left_hold:
-        name: Left Button Hold
-        description: Action to run on left button hold.
-        selector:
-            action: {}
+      name: Left Button Hold
+      description: Action to run on left button hold.
+      default:
+      selector:
+          action: {}
     right_1x:
-        name: Right Button 1x
-        description: Action to run on right button press. If not set, the light with the same area name will be turned off.
-        selector:
-            action: {}
+      name: Right Button 1x
+      description: Action to run on right button press. If not set, the light with the same area name will be turned off.
+      default:
+      selector:
+          action: {}
     right_2x:
-        name: Right Button 2x
-        description: Action to run on right button double press. If not set, the scene "<area name> Dim" will be activated.
-        selector:
-            action: {}
+      name: Right Button 2x
+      description: Action to run on right button double press. If not set, the scene "<area name> Dim" will be activated.
+      default:
+      selector:
+          action: {}
     right_3x:
-        name: Right Button 3x
-        description: Action to run on right button triple press.
-        selector:
-            action: {}
+      name: Right Button 3x
+      description: Action to run on right button triple press.
+      default:
+      selector:
+          action: {}
     right_hold:
-        name: Right Button Hold
-        description: Action to run on right button hold.
-        selector:
-            action: {}
+      name: Right Button Hold
+      description: Action to run on right button hold.
+      default:
+      selector:
+          action: {}
+    both_1x:
+      name: Both Buttons 1x
+      description: Action to run on both buttons press.
+      default:
+      selector:
+          action: {}
+    both_2x:
+      name: Both Buttons 2x
+      description: Action to run on both buttons double press.
+      default:
+      selector:
+          action: {}
+    both_3x:
+      name: Both Buttons 3x
+      description: Action to run on both buttons triple press.
+      default:
+      selector:
+          action: {}
+    both_hold:
+      name: Both Buttons Hold
+      description: Action to run on both buttons hold.
+      default:
+      selector:
+          action: {}
 
-  mode: restart
-  max_exceeded: silent
 
-  trigger:
-    platform: event
-    event_type: zha_event
-    event_data:
-      device_id: !input switch
+mode: restart
+max_exceeded: silent
 
-  variables:
-    command: "{{ trigger.event.data.command }}"
-    args: "{{ trigger.event.data.args }}"
+trigger:
+  platform: event
+  event_type: zha_event
+  event_data:
+    device_id: !input switch
 
-    switch: !input switch
-    area: !input area
-    left_1x: > 
-      {% if !input left_1x %}
-      !input left_1x
-      {% else %}
-        service: light.toggle
-        target:
-          entity_id: light.{{ area }}
-      {% endif %}
-    left_2x: > 
-      {% if !input left_2x %}
-        !input left_2x
-      {% else %}
-        service: scene.turn_on
-        target:
-        entity_id: scene.{{ area }}_bright
-      {% endif %}
-    left_3x: !input left_3x
-    left_hold: !input left_hold
-    right_1x: > 
-      {% if !input right_1x %}
-        !input right_1x
-      {% else %}
-        service: light.turn_off
-        target:
-          entity_id: light.{{ area }}
-      {% endif %}
-    right_2x: > 
-      {% if !input right_2x %}
-        !input right_2x
-      {% else %}
-        service: scene.turn_on
-        target:
-          entity_id: scene.{{ area }}_dim
-      {% endif %}
-    right_3x: !input right_3x
-    right_hold: !input right_hold
+variables:
+  command: "{{ trigger.event.data.command }}"
 
-  action:
+  area: !input area
+  left_1x: !input left_1x
+  left_2x: !input left_2x
+  left_3x: !input left_3x
+  left_hold: !input left_hold
+  right_1x: !input right_1x
+  right_2x: !input right_2x
+  right_3x: !input right_3x
+  right_hold: !input right_hold
+  both_1x: !input both_1x
+  both_2x: !input both_2x
+  both_3x: !input both_3x
+  both_hold: !input both_hold
+
+action:
+# Left button
+- choose:
+  - conditions: "{{ command == '1_single' }}"
+    sequence:
     - choose:
-        - conditions: "{{ command == '1_single' }}"
+        - conditions: "{{ left_1x and left_1x != [] }}"
           sequence: !input left_1x
-        - conditions: "{{ command == '1_double' }}"
+      default:
+        - service: light.turn_on
+          target:
+            entity_id: light.{{ area | lower }}
+  - conditions: "{{ command == '1_double' }}"
+    sequence:
+    - choose:
+        - conditions: "{{ left_2x and left_2x != [] }}"
           sequence: !input left_2x
-        - conditions: "{{ command == '1_triple' }}"
-          sequence: !input left_3x
-        - conditions: "{{ command == '1_hold' }}"
-          sequence: !input left_hold
-        - conditions: "{{ command == '2_single' }}"
+      default:
+        - service: scene.turn_on
+          target:
+            entity_id: scene.{{ area | lower }}_bright
+  - conditions: "{{ command == '1_triple' }}"
+    sequence: !input left_3x
+  - conditions: "{{ command == '1_hold' }}"
+    sequence: !input left_hold
+
+# Right button
+- choose:
+  - conditions: "{{ command == '2_single' }}"
+    sequence:
+    - choose:
+        - conditions: "{{ right_1x and right_1x != [] }}"
           sequence: !input right_1x
-        - conditions: "{{ command == '2_double' }}"
+      default:
+        - service: light.turn_off
+          target:
+            entity_id: light.{{ area | lower }}
+  - conditions: "{{ command == '2_double' }}"
+    sequence:
+    - choose:
+        - conditions: "{{ right_2x and right_2x != [] }}"
           sequence: !input right_2x
-        - conditions: "{{ command == '2_triple' }}"
-          sequence: !input right_3x
-        - conditions: "{{ command == '2_hold' }}"
-          sequence: !input right_hold
+      default:
+        - service: scene.turn_on
+          target:
+            entity_id: scene.{{ area | lower }}_dim
+  - conditions: "{{ command == '2_triple' }}"
+    sequence: !input right_3x
+  - conditions: "{{ command == '2_hold' }}"
+    sequence: !input right_hold
+
+# Both buttons
+- choose:
+  - conditions: "{{ command == '3_single' }}"
+    sequence: !input both_1x
+  - conditions: "{{ command == '3_double' }}"
+    sequence: !input both_2x
+  - conditions: "{{ command == '3_triple' }}"
+    sequence: !input both_3x
+  - conditions: "{{ command == '3_hold' }}"
+    sequence: !input both_hold
