@@ -11,12 +11,13 @@ blueprint:
   domain: automation
   source_url: https://github.com/SondreGronas/hass-blueprints/blob/main/devices/Aqara%20H1%20Switch%20ZHA.yaml
   input:
-    switch:
+    switches:
       name: Aqara H1 Switch
       description: The Aqara H1 Switch device.
       selector:
         device:
           model: lumi.remote.b28ac1
+          multiple: true
     area:
       name: Area
       description: The area to control. Should be the same as the light group name.
@@ -100,14 +101,8 @@ blueprint:
 mode: restart
 max_exceeded: silent
 
-trigger:
-  platform: event
-  event_type: zha_event
-  event_data:
-    device_id: !input switch
-
 variables:
-  command: "{{ trigger.event.data.command }}"
+  switches: !input switches
 
   area: !input area
   light_group_name: "{{ area | lower | replace(' ', '_') }}"
@@ -124,9 +119,21 @@ variables:
   both_3x: !input both_3x
   both_hold: !input both_hold
 
+trigger:
+  platform: event
+  event_type: zha_event
+
+condition:
+- condition: template
+  value_template: "{{ trigger.event.data.device_id in switches }}"
+
 action:
+- variables:
+    command: "{{ trigger.event.data.command }}"
+
 - choose:
   # Left button
+  ##############################
   - conditions: "{{ command == '1_single' }}"
     sequence:
     - choose:
@@ -151,6 +158,7 @@ action:
     sequence: !input left_hold
 
   # Right button
+  ##############################
   - conditions: "{{ command == '2_single' }}"
     sequence:
     - choose:
@@ -175,11 +183,12 @@ action:
     sequence: !input right_hold
 
   # Both buttons
+  ##############################
   - conditions: "{{ command == '3_single' }}"
     sequence: !input both_1x
 
+  # Set every light in a light group to a random color (only affects lights with color support)
   - conditions: "{{ command == '3_double' }}"
-    # Set every light in a light group to a random color (only affects lights with color support)
     sequence:
     - choose:
       - conditions: "{{ both_2x and both_2x != [] }}"
