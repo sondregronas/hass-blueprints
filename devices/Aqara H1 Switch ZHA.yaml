@@ -25,13 +25,13 @@ blueprint:
 
     left_1x:
       name: Left Button Single Press
-      description: Action to run on left button press. By default "light.<area_name>" will be turned on.
+      description: Action to run on left button press. By default `light.<area_name>` will be turned on.
       default:
       selector:
         action: {}
     left_2x:
       name: Left Button Double Press
-      description: Action to run on left button double press. By default "scene.<area_name>_bright" will be activated.
+      description: Action to run on left button double press. By default `scene.<area_name>_bright` will be activated.
       default:
       selector:
         action: {}
@@ -49,13 +49,13 @@ blueprint:
           action: {}
     right_1x:
       name: Right Button Single Press
-      description: Action to run on right button press. By default "light.<area_name>" will be turned off.
+      description: Action to run on right button press. By default `light.<area_name>` will be turned off.
       default:
       selector:
           action: {}
     right_2x:
       name: Right Button Double Press
-      description: Action to run on right button double press. By default "scene.<area_name>_dim" will be activated.
+      description: Action to run on right button double press. By default `scene.<area_name>_dim` will be activated.
       default:
       selector:
           action: {}
@@ -125,8 +125,8 @@ variables:
   both_hold: !input both_hold
 
 action:
-# Left button
 - choose:
+  # Left button
   - conditions: "{{ command == '1_single' }}"
     sequence:
     - choose:
@@ -150,8 +150,7 @@ action:
   - conditions: "{{ command == '1_hold' }}"
     sequence: !input left_hold
 
-# Right button
-- choose:
+  # Right button
   - conditions: "{{ command == '2_single' }}"
     sequence:
     - choose:
@@ -175,8 +174,7 @@ action:
   - conditions: "{{ command == '2_hold' }}"
     sequence: !input right_hold
 
-# Both buttons
-- choose:
+  # Both buttons
   - conditions: "{{ command == '3_single' }}"
     sequence: !input both_1x
   - conditions: "{{ command == '3_double' }}"
