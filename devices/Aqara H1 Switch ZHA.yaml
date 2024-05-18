@@ -19,79 +19,79 @@ blueprint:
           model: lumi.remote.b28ac1
     area:
       name: Area
-      description: The area to control.
+      description: The area to control. Should be the same as the light group name.
       selector:
         area: {}
 
     left_1x:
       name: Left Button Single Press
-      description: Action to run on left button press. By default `light.<area_name>` will be turned on.
+      description: By default `light.<area_name>` will be turned on.
       default:
       selector:
         action: {}
     left_2x:
       name: Left Button Double Press
-      description: Action to run on left button double press. By default `scene.<area_name>_bright` will be activated.
+      description: By default `scene.<area_name>_bright` will be activated.
       default:
       selector:
         action: {}
     left_3x:
       name: Left Button Triple Press
-      description: Action to run on left button triple press.
+      #description:
       default:
       selector:
           action: {}
     left_hold:
       name: Left Button Hold
-      description: Action to run on left button hold.
+      #description:
       default:
       selector:
           action: {}
     right_1x:
       name: Right Button Single Press
-      description: Action to run on right button press. By default `light.<area_name>` will be turned off.
+      description: By default `light.<area_name>` will be turned off.
       default:
       selector:
           action: {}
     right_2x:
       name: Right Button Double Press
-      description: Action to run on right button double press. By default `scene.<area_name>_dim` will be activated.
+      description: By default `scene.<area_name>_dim` will be activated.
       default:
       selector:
           action: {}
     right_3x:
       name: Right Button Triple Press
-      description: Action to run on right button triple press.
+      #description:
       default:
       selector:
           action: {}
     right_hold:
       name: Right Button Hold
-      description: Action to run on right button hold.
+      #description:
       default:
       selector:
           action: {}
     both_1x:
       name: Both Buttons Single Press
-      description: Action to run on both buttons press.
+      #description:
       default:
       selector:
           action: {}
     both_2x:
       name: Both Buttons Double Press
-      description: Action to run on both buttons double press.
+      description: By default sets every light in a light group (`light.<area_name>`) to a random color. Only affects lights with color support.
       default:
       selector:
           action: {}
     both_3x:
       name: Both Buttons Triple Press
-      description: Action to run on both buttons triple press.
+      #description:
       default:
       selector:
           action: {}
     both_hold:
       name: Both Buttons Hold
-      description: Action to run on both buttons hold.
+      #description:
       default:
       selector:
           action: {}
@@ -177,8 +177,30 @@ action:
   # Both buttons
   - conditions: "{{ command == '3_single' }}"
     sequence: !input both_1x
+
   - conditions: "{{ command == '3_double' }}"
-    sequence: !input both_2x
+    # Set every light in a light group to a random color (only affects lights with color support)
+    sequence:
+    - choose:
+      - conditions: "{{ both_2x and both_2x != [] }}"
+        sequence: !input both_2x
+      default:
+      - repeat:
+          # Repeat for each light in the light group
+          for_each: "{{ expand('light.' ~ light_group_name) | map(attribute='entity_id') | list }}"
+          sequence:
+            # Check if the light supports color (hs_color)
+            - condition: template
+              value_template: "{{ 'hs_color' in states[repeat.item].attributes }}"
+            # Set the light to a random color
+            - service: light.turn_on
+              target:
+                entity_id: "{{ repeat.item }}"
+              data_template:
+                hs_color:
+                  - "{{ range(0, 360) | random }}"
+                  - 100  # Full saturation
+
   - conditions: "{{ command == '3_triple' }}"
     sequence: !input both_3x
   - conditions: "{{ command == '3_hold' }}"
