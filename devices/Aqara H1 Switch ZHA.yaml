@@ -110,7 +110,7 @@ variables:
   command: "{{ trigger.event.data.command }}"
 
   area: !input area
-  light_group_name: {{ area | lower | replace(' ', '_') }}
+  light_group_name: "{{ area | lower | replace(' ', '_') }}"
   left_1x: !input left_1x
   left_2x: !input left_2x
   left_3x: !input left_3x
