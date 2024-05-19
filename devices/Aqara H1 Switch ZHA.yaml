@@ -20,13 +20,22 @@ blueprint:
           multiple: true
     area:
       name: Area
-      description: The area to control. Should be the same as the light group name.
+      description: The area to control. (Only affects default behavior)
       selector:
         area: {}
 
+    # TODO: Build-in the ability to override any other automation that might interfere with the lights, i.e. motion sensors.
+    #       for now this can be done by using the optional_action inputs.
+    optional_action:
+      name: Any button pressed action
+      description: An optional action to run before the button press actions. (e.g. turn off lights when motion is detected)
+      default:
+      selector:
+        action: {}
+
     left_1x:
       name: Left Button Single Press
-      description: By default `light.<area_name>` will be turned on.
+      description: By default every light in the area will be turned on.
       default:
       selector:
         action: {}
@@ -50,7 +59,7 @@ blueprint:
           action: {}
     right_1x:
       name: Right Button Single Press
-      description: By default `light.<area_name>` will be turned off.
+      description: By default every light in the area will be turned off.
       default:
       selector:
           action: {}
@@ -80,7 +89,7 @@ blueprint:
           action: {}
     both_2x:
       name: Both Buttons Double Press
-      description: By default sets every light in a light group (`light.<area_name>`) to a random color. Only affects lights with color support.
+      description: By default sets every light in the area to a random color, only affects lights with color support.
       default:
       selector:
           action: {}
@@ -105,7 +114,12 @@ variables:
   switches: !input switches
 
   area: !input area
-  light_group_name: "{{ area | lower | replace(' ', '_') }}"
+  area_name: "{{ area | lower | replace(' ', '_') }}"
+  light_entities: "{{ expand(area_entities(area)) | selectattr('domain', 'eq', 'light') | map(attribute='entity_id') | list }}"
+  light_entities_with_hs_color: "{{ expand(light_entities) | selectattr('attributes.hs_color', 'defined') | map(attribute='entity_id') | list }}"
+
+  optional_action: !input optional_action
+
   left_1x: !input left_1x
   left_2x: !input left_2x
   left_3x: !input left_3x
@@ -132,6 +146,10 @@ action:
     command: "{{ trigger.event.data.command }}"
 
 - choose:
+    - conditions : "{{ optional_action and optional_action != [] }}"
+      sequence: !input optional_action
+
+- choose:
   # Left button
   ##############################
   - conditions: "{{ command == '1_single' }}"
@@ -140,9 +158,12 @@ action:
         - conditions: "{{ left_1x and left_1x != [] }}"
           sequence: !input left_1x
       default:
-        - service: light.turn_on
-          target:
-            entity_id: light.{{ light_group_name }}
+        - repeat:
+            for_each: "{{ light_entities }}"
+            sequence:
+              - service: light.turn_on
+                target:
+                  entity_id: "{{ repeat.item }}"
   - conditions: "{{ command == '1_double' }}"
     sequence:
     - choose:
@@ -151,7 +172,7 @@ action:
       default:
         - service: scene.turn_on
           target:
-            entity_id: scene.{{ light_group_name }}_bright
+            entity_id: scene.{{ area_name }}_bright
   - conditions: "{{ command == '1_triple' }}"
     sequence: !input left_3x
   - conditions: "{{ command == '1_hold' }}"
@@ -165,9 +186,12 @@ action:
         - conditions: "{{ right_1x and right_1x != [] }}"
           sequence: !input right_1x
       default:
-        - service: light.turn_off
-          target:
-            entity_id: light.{{ light_group_name }}
+        - repeat:
+            for_each: "{{ light_entities }}"
+            sequence:
+              - service: light.turn_off
+                target:
+                  entity_id: "{{ repeat.item }}"
   - conditions: "{{ command == '2_double' }}"
     sequence:
     - choose:
@@ -176,7 +200,7 @@ action:
       default:
         - service: scene.turn_on
           target:
-            entity_id: scene.{{ light_group_name }}_dim
+            entity_id: scene.{{ area_name }}_dim
   - conditions: "{{ command == '2_triple' }}"
     sequence: !input right_3x
   - conditions: "{{ command == '2_hold' }}"
@@ -195,12 +219,9 @@ action:
         sequence: !input both_2x
       default:
       - repeat:
-          # Repeat for each light in the light group
-          for_each: "{{ expand('light.' ~ light_group_name) | map(attribute='entity_id') | list }}"
+          # Repeat for each light in the area
+          for_each: "{{ light_entities_with_hs_color }}"
           sequence:
-            # Check if the light supports color (hs_color)
-            - condition: template
-              value_template: "{{ 'hs_color' in states[repeat.item].attributes }}"
             # Set the light to a random color
             - service: light.turn_on
               target:
