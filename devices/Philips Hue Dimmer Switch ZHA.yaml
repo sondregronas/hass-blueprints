@@ -1,0 +1,281 @@
+# https://gist.github.com/sandervv/f326ff3b2bcb945b5a9dc0bfb82e3308
+
+blueprint:
+  name: Philips Hue Dimmer Switch (ZHA)
+  description: |
+      Blueprint to integrate the Philips Hue Dimmer Switch (ZHA) with Home Assistant.
+      Run actions on button presses.
+  domain: automation
+  source_url: https://github.com/sondregronas/hass-blueprints/blob/main/devices/Philips%20Hue%20Dimmer%20Switch%20ZHA.yaml
+
+  # Define the inputs for the blueprint
+  input:
+    remotes:
+      name: Philips Hue Dimmer Switches
+      description: Pick either RWL020 (US) or RWL021 (EU)
+      selector:
+        device:
+          integration: zha
+          manufacturer: Philips
+          entity:
+            domain: sensor
+            device_class: battery
+          multiple: true
+    area:
+      name: Area
+      description: The area to control. (Only affects default behavior)
+      selector:
+        area: {}
+
+    optional_action:
+      name: Any button pressed action
+      description: An optional action to run before the button press actions. (e.g. turn off lights when motion is detected)
+      default:
+      selector:
+        action: {}
+
+    button_on_short_press:
+      name: On button short press
+      description: By default every light in the area will be turned on.
+      default: []
+      selector:
+        action:
+    button_on_double_press:
+      name: On button double press
+      description: By default `scene.<area_name>_bright` will be activated.
+      default: []
+      selector:
+        action:
+    button_on_long_press:
+      name: On button long press
+      description: By default every light in the area will get a random color. (Only affects lights with color support)
+      default: [ ]
+      selector:
+        action:
+
+    button_up_short_press:
+      name: Up button short press
+      description: By default every light in the area will get 15% brighter.
+      default: []
+      selector:
+        action:
+    button_up_double_press:
+      name: Up button double press
+      # description:
+      default: []
+      selector:
+        action:
+    button_up_long_press:
+      name: Up button long press
+      # description:
+      default: [ ]
+      selector:
+        action:
+
+    button_down_short_press:
+      name: Down button short press
+      description: By default every light in the area will get 15% dimmer.
+      default: []
+      selector:
+        action:
+    button_down_double_press:
+      name: Down button double press
+      # description:
+      default: []
+      selector:
+        action:
+    button_down_long_press:
+      name: Down button long press
+      # description:
+      default: []
+      selector:
+        action:
+
+    button_off_short_press:
+      name: Off button short press
+      description: By default every light in the area will be turned off.
+      default: []
+      selector:
+        action:
+    button_off_double_press:
+      name: Off button double press
+      description: By default `scene.<area_name>_dim` will be activated.
+      default: []
+      selector:
+        action:
+    button_off_long_press:
+      name: Off button long press
+      # description:
+      default: []
+      selector:
+        action:
+
+mode: restart
+max_exceeded: silent
+
+variables:
+  remotes: !input remotes
+
+  area: !input area
+  area_name: "{{ area | lower | replace(' ', '_') }}"
+  light_entities: "{{ expand(area_entities(area)) | selectattr('domain', 'eq', 'light') | map(attribute='entity_id') | list }}"
+  light_entities_with_hs_color: "{{ expand(light_entities) | selectattr('attributes.hs_color', 'defined') | map(attribute='entity_id') | list }}"
+
+  optional_action: !input optional_action
+
+  button_on_short_press: !input button_on_short_press
+  button_on_long_press: !input button_on_long_press
+  button_on_double_press: !input button_on_double_press
+  button_up_short_press: !input button_up_short_press
+  button_up_long_press: !input button_up_long_press
+  button_up_double_press: !input button_up_double_press
+  button_down_short_press: !input button_down_short_press
+  button_down_long_press: !input button_down_long_press
+  button_down_double_press: !input button_down_double_press
+  button_off_short_press: !input button_off_short_press
+  button_off_long_press: !input button_off_long_press
+  button_off_double_press: !input button_off_double_press
+
+trigger:
+  platform: event
+  event_type: zha_event
+
+condition:
+- condition: template
+  value_template: "{{ trigger.event.data.device_id in remotes }}"
+
+action:
+- variables:
+    command: '{{ trigger.event.data.command }}'
+
+- choose:
+    - conditions : "{{ optional_action != [] }}"
+      sequence: !input optional_action
+
+- choose:
+  # ON
+  ##############################
+
+  # Turn on all lights in the area
+  - conditions: '{{ command == ''on_press'' }}'
+    sequence:
+    - choose:
+      - conditions: "{{ button_on_short_press != [] }}"
+        sequence: !input button_on_short_press
+      default:
+      - repeat:
+          for_each: "{{ light_entities }}"
+          sequence:
+            - service: light.turn_on
+              target:
+                entity_id: "{{ repeat.item }}"
+
+  # Activate scene <area_name>_bright
+  - conditions: '{{ command == ''on_double_press'' }}'
+    sequence:
+    - choose:
+      - conditions: "{{ button_on_double_press != [] }}"
+        sequence: !input button_on_double_press
+      default:
+      - service: scene.turn_on
+        target:
+          entity_id: scene.{{ area_name }}_bright
+
+  # Set every light with color support to a random color
+  - conditions: '{{ command == ''on_hold'' }}'
+    sequence:
+    - choose:
+      - conditions: "{{ button_on_long_press != [] }}"
+        sequence: !input button_on_long_press
+      default:
+      - repeat:
+          for_each: "{{ light_entities_with_hs_color }}"
+          sequence:
+          - service: light.turn_on
+            target:
+              entity_id: "{{ repeat.item }}"
+            data:
+              hs_color:
+              - "{{ range(0, 360) | random }}"
+              - 100
+
+  # OFF
+  ##############################
+
+  # Turn off all lights
+  - conditions: '{{ command == ''off_press'' }}'
+    sequence:
+    - choose:
+      - conditions: "{{ button_off_short_press != [] }}"
+        sequence: !input button_off_short_press
+      default:
+      - repeat:
+          for_each: "{{ light_entities }}"
+          sequence:
+          - service: light.turn_off
+            target:
+              entity_id: "{{ repeat.item }}"
+
+  # Activate scene <area_name>_dim
+  - conditions: '{{ command == ''off_double_press'' }}'
+    sequence:
+    - choose:
+      - conditions: "{{ button_off_double_press != [] }}"
+        sequence: !input button_off_double_press
+      default:
+      - service: scene.turn_on
+        target:
+          entity_id: scene.{{ area_name }}_dim
+
+  - conditions: '{{ command == ''off_hold'' }}'
+    sequence: !input button_off_long_press
+
+  # UP
+  ##############################
+
+  # Add 15% brightness to all lights
+  - conditions: '{{ command == ''up_press'' }}'
+    sequence:
+    - choose:
+      - conditions: "{{ button_up_short_press != [] }}"
+        sequence: !input button_up_short_press
+      default:
+      - repeat:
+          for_each: "{{ light_entities }}"
+          sequence:
+          - service: light.turn_on
+            target:
+              entity_id: "{{ repeat.item }}"
+            data:
+              brightness_step_pct: 15
+
+  - conditions: '{{ command == ''up_double_press'' }}'
+    sequence: !input button_up_double_press
+
+  - conditions: '{{ command == ''up_hold'' }}'
+    sequence: !input button_up_long_press
+
+  # DOWN
+  ##############################
+
+  # Subtract 15% brightness from all lights
+  - conditions: '{{ command == ''down_press'' }}'
+    sequence:
+    - choose:
+      - conditions: "{{ button_down_short_press != [] }}"
+        sequence: !input button_down_short_press
+      default:
+      - repeat:
+          for_each: "{{ light_entities }}"
+          sequence:
+            - service: light.turn_on
+              target:
+                entity_id: "{{ repeat.item }}"
+              data:
+                brightness_step_pct: -15
+
+  - conditions: '{{ command == ''down_double_press'' }}'
+    sequence: !input button_down_double_press
+
+  - conditions: '{{ command == ''down_hold'' }}'
+    sequence: !input button_down_long_press

@@ -9,7 +9,7 @@ blueprint:
       Run actions on button presses.
 
   domain: automation
-  source_url: https://github.com/SondreGronas/hass-blueprints/blob/main/devices/Aqara%20H1%20Switch%20ZHA.yaml
+  source_url: https://github.com/sondregronas/hass-blueprints/blob/main/devices/Aqara%20H1%20Switch%20ZHA.yaml
   input:
     switches:
       name: Aqara H1 Switch
@@ -29,83 +29,82 @@ blueprint:
     optional_action:
       name: Any button pressed action
       description: An optional action to run before the button press actions. (e.g. turn off lights when motion is detected)
-      default:
+      default: []
       selector:
         action: {}
 
     left_1x:
       name: Left Button Single Press
       description: By default every light in the area will be turned on.
-      default:
+      default: []
       selector:
         action: {}
     left_2x:
       name: Left Button Double Press
       description: By default `scene.<area_name>_bright` will be activated.
-      default:
+      default: []
       selector:
         action: {}
     left_3x:
       name: Left Button Triple Press
       #description:
-      default:
+      default: []
       selector:
           action: {}
     left_hold:
       name: Left Button Hold
       #description:
-      default:
+      default: []
       selector:
           action: {}
     right_1x:
       name: Right Button Single Press
       description: By default every light in the area will be turned off.
-      default:
+      default: []
       selector:
           action: {}
     right_2x:
       name: Right Button Double Press
       description: By default `scene.<area_name>_dim` will be activated.
-      default:
+      default: []
       selector:
           action: {}
     right_3x:
       name: Right Button Triple Press
       #description:
-      default:
+      default: []
       selector:
           action: {}
     right_hold:
       name: Right Button Hold
       #description:
-      default:
+      default: []
       selector:
           action: {}
     both_1x:
       name: Both Buttons Single Press
       #description:
-      default:
+      default: []
       selector:
           action: {}
     both_2x:
       name: Both Buttons Double Press
       description: By default sets every light in the area to a random color, only affects lights with color support.
-      default:
+      default: []
       selector:
           action: {}
     both_3x:
       name: Both Buttons Triple Press
       #description:
-      default:
+      default: []
       selector:
           action: {}
     both_hold:
       name: Both Buttons Hold
       #description:
-      default:
+      default: []
       selector:
           action: {}
-
 
 mode: restart
 max_exceeded: silent
@@ -146,7 +145,7 @@ action:
     command: "{{ trigger.event.data.command }}"
 
 - choose:
-    - conditions : "{{ optional_action and optional_action != [] }}"
+    - conditions : "{{ optional_action != [] }}"
       sequence: !input optional_action
 
 - choose:
@@ -155,7 +154,7 @@ action:
   - conditions: "{{ command == '1_single' }}"
     sequence:
     - choose:
-        - conditions: "{{ left_1x and left_1x != [] }}"
+        - conditions: "{{ left_1x != [] }}"
           sequence: !input left_1x
       default:
         - repeat:
@@ -167,7 +166,7 @@ action:
   - conditions: "{{ command == '1_double' }}"
     sequence:
     - choose:
-        - conditions: "{{ left_2x and left_2x != [] }}"
+        - conditions: "{{ left_2x != [] }}"
           sequence: !input left_2x
       default:
         - service: scene.turn_on
@@ -183,7 +182,7 @@ action:
   - conditions: "{{ command == '2_single' }}"
     sequence:
     - choose:
-        - conditions: "{{ right_1x and right_1x != [] }}"
+        - conditions: "{{ right_1x != [] }}"
           sequence: !input right_1x
       default:
         - repeat:
@@ -195,7 +194,7 @@ action:
   - conditions: "{{ command == '2_double' }}"
     sequence:
     - choose:
-        - conditions: "{{ right_2x and right_2x != [] }}"
+        - conditions: "{{ right_2x != [] }}"
           sequence: !input right_2x
       default:
         - service: scene.turn_on
@@ -215,7 +214,7 @@ action:
   - conditions: "{{ command == '3_double' }}"
     sequence:
     - choose:
-      - conditions: "{{ both_2x and both_2x != [] }}"
+      - conditions: "{{ both_2x != [] }}"
         sequence: !input both_2x
       default:
       - repeat:
