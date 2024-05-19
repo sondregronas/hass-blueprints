@@ -3,7 +3,7 @@
 # TODO: Default behavior for turning on/off lights should remember the previous state of the light.
 
 blueprint:
-  name: Aqara H1 Switch (ZHA)
+  name: SGDevice - Aqara H1 Switch (ZHA)
   description: |
       Blueprint to integrate the Aqara H1 Switch (ZHA) with Home Assistant.
       Run actions on button presses.

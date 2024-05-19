@@ -1,7 +1,7 @@
 # https://gist.github.com/sandervv/f326ff3b2bcb945b5a9dc0bfb82e3308
 
 blueprint:
-  name: Philips Hue Dimmer Switch (ZHA)
+  name: SGDevice - Philips Hue Dimmer Switch (ZHA)
   description: |
       Blueprint to integrate the Philips Hue Dimmer Switch (ZHA) with Home Assistant.
       Run actions on button presses.
