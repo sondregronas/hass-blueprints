@@ -3,21 +3,33 @@
 # TODO: Default behavior for turning on/off lights should remember the previous state of the light.
 
 blueprint:
-  name: SGDevice - Aqara H1 Switch (ZHA)
+  name: SGDevice - Aqara H1 Switch
   description: |
-      Blueprint to integrate the Aqara H1 Switch (ZHA) with Home Assistant.
+      Blueprint to integrate the Aqara H1 Switch with Home Assistant.
       Run actions on button presses.
 
   domain: automation
-  source_url: https://github.com/sondregronas/hass-blueprints/blob/main/devices/Aqara%20H1%20Switch%20ZHA.yaml
+  source_url: https://github.com/sondregronas/hass-blueprints/blob/main/devices/Aqara%20H1%20Switch.yaml
   input:
-    switches:
-      name: Aqara H1 Switch
-      description: The Aqara H1 Switch device.
+    switches_zha:
+      name: Aqara H1 Switch (ZHA)
+      description: The Aqara H1 Switch device(s) over ZHA.
+      default: []
       selector:
         device:
           model: lumi.remote.b28ac1
           multiple: true
+
+    switches_z2mqtt:
+      name: Aqara H1 Switch (Z2M)
+      description: The Aqara H1 Switch device(s) over Zigbee2MQTT.
+      default: []
+      selector:
+        device:
+          manufacturer: Aqara
+          integration: mqtt
+          multiple: true
+
     area:
       name: Area
       description: The area to control. (Only affects default behavior)
@@ -110,7 +122,9 @@ mode: restart
 max_exceeded: silent
 
 variables:
-  switches: !input switches
+  switches_zha: !input switches_zha
+  switches_z2mqtt: !input switches_z2mqtt
+  switches_mqtt_friendlynames: "{% set names = namespace(x=[]) %}{% for id in switches_z2mqtt %}{% set names.x = names.x + [device_attr(id,'name')] %}{% endfor %}{{ names.x }}"
 
   area: !input area
   area_name: "{{ area | lower | replace(' ', '_') }}"
@@ -133,17 +147,27 @@ variables:
   both_hold: !input both_hold
 
 trigger:
-  platform: event
+- platform: event
   event_type: zha_event
-
+- platform: mqtt
+  topic: zigbee2mqtt/+/action
 condition:
 - condition: template
-  value_template: "{{ trigger.event.data.device_id in switches }}"
+  value_template: >
+    {% if 'payload' in trigger %}
+      {{ trigger.topic.split('/')[1] in switches_mqtt_friendlynames }}
+    {% else %}
+      {{ trigger.event.data.device_id in switches_zha }}
+    {% endif %}
 
 action:
 - variables:
-    command: "{{ trigger.event.data.command }}"
-
+    command: > 
+      {% if 'payload' in trigger %}
+        {{ trigger.payload }}
+      {% else %}
+        {{ trigger.event.data.command }}
+      {% endif %}
 - choose:
     - conditions : "{{ optional_action != [] }}"
       sequence: !input optional_action
@@ -151,7 +175,7 @@ action:
 - choose:
   # Left button
   ##############################
-  - conditions: "{{ command == '1_single' }}"
+  - conditions: "{{ command == '1_single' or command == 'single_left' }}"
     sequence:
     - choose:
         - conditions: "{{ left_1x != [] }}"
@@ -163,7 +187,7 @@ action:
               - service: light.turn_on
                 target:
                   entity_id: "{{ repeat.item }}"
-  - conditions: "{{ command == '1_double' }}"
+  - conditions: "{{ command == '1_double' or command == 'double_left' }}"
     sequence:
     - choose:
         - conditions: "{{ left_2x != [] }}"
@@ -172,14 +196,14 @@ action:
         - service: scene.turn_on
           target:
             entity_id: scene.{{ area_name }}_bright
-  - conditions: "{{ command == '1_triple' }}"
+  - conditions: "{{ command == '1_triple' or command == 'triple_left' }}"
     sequence: !input left_3x
-  - conditions: "{{ command == '1_hold' }}"
+  - conditions: "{{ command == '1_hold' or command == 'hold_left' }}"
     sequence: !input left_hold
 
   # Right button
   ##############################
-  - conditions: "{{ command == '2_single' }}"
+  - conditions: "{{ command == '2_single' or command == 'single_right' }}"
     sequence:
     - choose:
         - conditions: "{{ right_1x != [] }}"
@@ -191,7 +215,7 @@ action:
               - service: light.turn_off
                 target:
                   entity_id: "{{ repeat.item }}"
-  - conditions: "{{ command == '2_double' }}"
+  - conditions: "{{ command == '2_double' or command == 'double_right' }}"
     sequence:
     - choose:
         - conditions: "{{ right_2x != [] }}"
@@ -200,18 +224,18 @@ action:
         - service: scene.turn_on
           target:
             entity_id: scene.{{ area_name }}_dim
-  - conditions: "{{ command == '2_triple' }}"
+  - conditions: "{{ command == '2_triple' or command == 'triple_right' }}"
     sequence: !input right_3x
-  - conditions: "{{ command == '2_hold' }}"
+  - conditions: "{{ command == '2_hold' or command == 'hold_right' }}"
     sequence: !input right_hold
 
   # Both buttons
   ##############################
-  - conditions: "{{ command == '3_single' }}"
+  - conditions: "{{ command == '3_single' or command == 'single_both' }}"
     sequence: !input both_1x
 
   # Set every light in a light group to a random color (only affects lights with color support)
-  - conditions: "{{ command == '3_double' }}"
+  - conditions: "{{ command == '3_double' or command == 'double_both' }}"
     sequence:
     - choose:
       - conditions: "{{ both_2x != [] }}"
@@ -230,7 +254,7 @@ action:
                   - "{{ range(0, 360) | random }}"
                   - 100  # Full saturation
 
-  - conditions: "{{ command == '3_triple' }}"
+  - conditions: "{{ command == '3_triple' or command == 'triple_both' }}"
     sequence: !input both_3x
-  - conditions: "{{ command == '3_hold' }}"
+  - conditions: "{{ command == '3_hold' or command == 'hold_both' }}"
     sequence: !input both_hold
