@@ -1,0 +1,62 @@
+blueprint:
+  name: SGDevice - Temperature Controlled Fans
+  description: |
+    Control fans (switches) based on temperature readings.
+  
+  domain: automation
+  source_url: https://github.com/sondregronas/hass-blueprints/blob/main/automations/Temperature%20Controlled%20Fans.yaml
+  input:
+    fans:
+      name: Fans (Switches)
+      description: The fans to control with the switch.
+      default: [ ]
+      selector:
+        entity:
+          domain: switch
+          multiple: true
+    
+    temperature_sensor:
+      name: Temperature Sensor
+      description: The temperature sensor to use for controlling the fans.
+      default: ''
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
+    
+    temperature_threshold:
+      name: Temperature Threshold
+      description: The temperature threshold to turn on or off the fans.
+      default: 24.5
+      selector:
+        number:
+          min: 10
+          max: 30
+          unit_of_measurement: "°C"
+          mode: slider
+          step: .5
+
+mode: restart
+max_exceeded: silent
+
+trigger:
+  - platform: numeric_state
+    entity_id: !input temperature_sensor
+    above: !input temperature_threshold
+    for: '00:01:00'
+    id: 'on'
+  - platform: numeric_state
+    entity_id: !input temperature_sensor
+    below: !input temperature_threshold
+    for: '00:01:00'
+    id: 'off'
+
+action:
+  - variables:
+      fan_state: "{{ 'on' if trigger.id == 'on' else 'off' }}"
+  - repeat:
+      for_each: !input fans
+      sequence:
+        - service: switch.turn_{{ fan_state }}
+          target:
+            entity_id: "{{ repeat.item }}"
