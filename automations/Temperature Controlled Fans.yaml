@@ -24,10 +24,22 @@ blueprint:
           domain: sensor
           device_class: temperature
     
-    temperature_threshold:
-      name: Temperature Threshold
-      description: The temperature threshold to turn on or off the fans.
-      default: 24.5
+    temperature_on:
+      name: Temperature On
+      description: The temperature threshold to turn on the fans.
+      default: 25.0
+      selector:
+        number:
+          min: 10
+          max: 30
+          unit_of_measurement: "°C"
+          mode: slider
+          step: .5
+
+    temperature_off:
+      name: Temperature Off
+      description: The temperature threshold to turn off the fans.
+      default: 23.0
       selector:
         number:
           min: 10
@@ -42,12 +54,12 @@ max_exceeded: silent
 trigger:
   - platform: numeric_state
     entity_id: !input temperature_sensor
-    above: !input temperature_threshold
+    above: !input temperature_on
     for: '00:01:00'
     id: 'on'
   - platform: numeric_state
     entity_id: !input temperature_sensor
-    below: !input temperature_threshold
+    below: !input temperature_off
     for: '00:01:00'
     id: 'off'
 
