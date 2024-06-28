@@ -1,0 +1,66 @@
+blueprint:
+  name: SGAuto - House Lights Based On Presence
+  description: |
+    **NOTE:** Requires [SGScript - Snapshot Lights In Areas](https://github.com/sondregronas/hass-blueprints/blob/main/scripts/Snapshot%20Lights%20In%20Areas.yaml) to be installed with a script configured.
+  domain: automation
+  source_url: https://github.com/sondregronas/hass-blueprints/blob/main/automations/House%20Lights%20Based%20On%20Presence.yaml
+  input:
+    presence_binary_sensor:
+      name: Anyone Home Presence Sensor
+      description: >
+        The binary sensor to use for presence detection.
+        
+        I.e. a binary sensor with the state `on` if _anyone_ is home. (e.g. via the Person integration or using a manual switch for guests)
+      selector:
+        entity:
+          domain: binary_sensor
+          device_class: presence
+
+    snapshot_script:
+      name: Snapshot Script
+      description: The configured script to snapshot the lights in the house.
+      selector:
+        entity:
+          domain: script
+
+    snapshot_id:
+      name: Snapshot ID
+      description: The ID of the snapshot scene. (Same as in the snapshot script)
+      default: 'all_areas'
+      selector:
+        text: { }
+
+variables:
+  _presence: !input presence_binary_sensor
+  _snapshot_script: !input snapshot_script
+  _snapshot_id: !input snapshot_id
+
+trigger:
+  - id: "home"
+    platform: state
+    entity_id: !input presence_binary_sensor
+    to: "on"
+  - id: "away"
+    platform: state
+    entity_id: !input presence_binary_sensor
+    to: "off"
+
+action:
+  choose:
+    - conditions: "{{ trigger.id == 'home' }}"
+      sequence:
+        - service: scene.turn_on
+          target:
+            entity_id: "scene.sg_snapshot_{{ _snapshot_id }}"
+    - conditions: "{{ trigger.id == 'away' }}"
+      sequence:
+        - service: script.turn_on
+          target:
+            entity_id: "{{ _snapshot_script }}"
+        # Turn off all the lights in the generated scene
+        - repeat:
+            for_each: "{{ state_attr('scene.sg_snapshot_' ~ _snapshot_id, 'entity_id') }}"
+            sequence:
+              - service: light.turn_off
+                target:
+                  entity_id: "{{ repeat.item }}"

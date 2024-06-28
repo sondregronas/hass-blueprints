@@ -1,0 +1,66 @@
+blueprint:
+  name: SGScript - Snapshot Lights In Areas
+  description: >
+    A script to snapshot the state of all lights in an area. 
+    
+    Only snapshots areas if any light is on in the area.
+    
+    **NOTE:** Scenes do not survive restarts.
+  source_url: https://github.com/sondregronas/hass-blueprints/blob/main/scripts/Snapshot%20Lights%20In%20Areas.yaml
+  domain: script
+  input:
+    included_areas:
+      name: Included Areas
+      description: Will be all areas if none are selected.
+      default: [ ]
+      selector:
+        area:
+          multiple: true
+
+    excluded_areas:
+      name: Excluded Areas
+      description: The areas to exclude. (i.e. outdoor areas)
+      default: [ ]
+      selector:
+        area:
+          multiple: true
+
+    id:
+      name: Scene ID (Do not use spaces)
+      description: >
+        The ID of the generated scene (if you want to use multiple snapshots) 
+        
+        Generated scene will be `scene.sg_snapshot_<id>`
+      default: 'all_areas'
+      selector:
+        text: { }
+
+variables:
+  id: !input id
+
+  _all_areas: "{{ areas() }}"
+  _included_areas: !input included_areas
+  _excluded_areas: !input excluded_areas
+  _areas: "{{_included_areas if _included_areas else _all_areas}}"
+
+  # Filter out excluded areas
+  areas: "{{ set(_areas) - set(_excluded_areas) }}"
+
+  turned_on_lights_in_area: >
+    {% set ns = namespace(turned_on_lights=[]) %}
+    {% for area in areas %}
+        {% if expand(area_entities(area)) | selectattr('domain', 'eq', 'light') | selectattr('state', 'eq', 'on') | list %}
+        {% for entity in expand(area_entities(area)) %}
+          {% if entity.domain == 'light' %}
+            {% set ns.turned_on_lights = ns.turned_on_lights + [entity.entity_id] %}
+          {% endif %}
+        {% endfor %} 
+        {% endif %}
+    {% endfor %}
+    {{ ns.turned_on_lights }}
+
+sequence:
+  - service: scene.create
+    data:
+      scene_id: "sg_snapshot_{{ id }}"
+      snapshot_entities: "{{ turned_on_lights_in_area }}"

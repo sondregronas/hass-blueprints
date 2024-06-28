@@ -1,5 +1,5 @@
 blueprint:
-  name: SGDevice - Temperature Controlled Fans
+  name: SGAuto - Temperature Controlled Fans
   description: |
     Control fans (switches) based on temperature readings.
   
