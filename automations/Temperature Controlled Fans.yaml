@@ -36,6 +36,16 @@ blueprint:
           mode: slider
           step: .5
 
+    temperature_on_sensor:
+      name: Temperature On Sensor
+      description: Overrides the "Temperature On" value with the value from this sensor, if it is available. (Only uses the first sensor)
+      default: [ ]
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
+          multiple: true
+
     temperature_off:
       name: Temperature Off
       description: The temperature threshold to turn off the fans.
@@ -48,34 +58,56 @@ blueprint:
           mode: slider
           step: .5
 
+    temperature_off_sensor:
+      name: Temperature Off Sensor
+      description: Overrides the "Temperature Off" value with the value from this sensor, if it is available. (Only uses the first sensor)
+      default: [ ]
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
+          multiple: true
+
 mode: restart
 max_exceeded: silent
 
+variables:
+  _temperature_sensor: !input temperature_sensor
+  current_temperature: "{{ states(_temperature_sensor) | float }}"
+
+  _temperature_on_threshold: !input temperature_on
+  _temperature_off_threshold: !input temperature_off
+  _temperature_on_sensor: !input temperature_on_sensor
+  _temperature_off_sensor: !input temperature_off_sensor
+
+  temperature_on: "{{ (states(_temperature_on_sensor[0]) if _temperature_on_sensor else _temperature_on_threshold) | float }}"
+  temperature_off: "{{ (states(_temperature_off_sensor[0]) if _temperature_off_sensor else _temperature_off_threshold) | float }}"
+
 trigger:
-  - platform: numeric_state
+  - platform: state
     entity_id: !input temperature_sensor
-    above: !input temperature_on
-    for: '00:01:00'
-    id: 'on'
-  - platform: numeric_state
-    entity_id: !input temperature_sensor
-    below: !input temperature_off
-    for: '00:01:00'
-    id: 'off'
 
 action:
   - variables:
-      fan_state: "{{ 'on' if trigger.id == 'on' else 'off' }}"
+      # Determine the desired state of the fan based on the current temperature
+      fan_state: "{{ 'on' if current_temperature >= temperature_on else 'off' }}"
+      # Only turn off the fan if the temperature is below the off threshold, not inbetween the on and off thresholds
+      is_below_threshold: "{{ current_temperature <= temperature_off }}"
   - repeat:
       for_each: !input fans
       sequence:
+        # Guard clause to prevent switching the fan if it is already in the desired state (probably unnecessary)
+        - condition: template
+          value_template: "{{ not is_state(states(repeat.item), fan_state) }}"
         - choose:
+            # Turn on the fan if the temperature is above or equal to the on threshold
             - conditions: "{{ fan_state == 'on' }}"
               sequence:
                 - service: switch.turn_on
                   target:
                     entity_id: "{{ repeat.item }}"
-            - conditions: "{{ fan_state == 'off' }}"
+            # Turn off the fan if the temperature is below the off threshold
+            - conditions: "{{ fan_state == 'off' and is_below_threshold }}"
               sequence:
                 - service: switch.turn_off
                   target:
