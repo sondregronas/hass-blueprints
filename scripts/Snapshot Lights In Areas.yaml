@@ -25,6 +25,24 @@ blueprint:
         area:
           multiple: true
 
+    included_devices:
+      name: Included Lights
+      description: If you want to include specific lights that are not in the specified areas.
+      default: [ ]
+      selector:
+        entity:
+          domain: light
+          multiple: true
+
+    excluded_devices:
+      name: Excluded Lights
+      description: For lights you want to exclude from the snapshot, even if they are in an included area.
+      default: [ ]
+      selector:
+        entity:
+          domain: light
+          multiple: true
+
     id:
       name: Scene ID (Do not use spaces)
       description: >
@@ -43,21 +61,27 @@ variables:
   _excluded_areas: !input excluded_areas
   _areas: "{{_included_areas if _included_areas else _all_areas}}"
 
+  _included_devices: !input included_devices
+  _excluded_devices: !input excluded_devices
+
   # Filter out excluded areas
   areas: "{{ set(_areas) - set(_excluded_areas) }}"
 
   turned_on_lights_in_area: >
     {% set ns = namespace(turned_on_lights=[]) %}
+    {% for device in _included_devices %}
+      {% set ns.turned_on_lights = ns.turned_on_lights + [device] %}
+    {% endfor %}
     {% for area in areas %}
         {% if expand(area_entities(area)) | selectattr('domain', 'eq', 'light') | selectattr('state', 'eq', 'on') | list %}
         {% for entity in expand(area_entities(area)) %}
-          {% if entity.domain == 'light' %}
+          {% if entity.domain == 'light' and entity.entity_id not in _excluded_devices %}
             {% set ns.turned_on_lights = ns.turned_on_lights + [entity.entity_id] %}
           {% endif %}
         {% endfor %} 
         {% endif %}
     {% endfor %}
-    {{ ns.turned_on_lights }}
+    {{ set(ns.turned_on_lights) }}
 
 sequence:
   - service: scene.create

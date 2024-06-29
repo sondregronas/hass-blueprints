@@ -81,7 +81,7 @@ variables:
   _temperature_off_sensor: !input temperature_off_sensor
 
   temperature_on: "{{ (min(states(_temperature_on_sensor[0]), _temperature_on_threshold) if _temperature_on_sensor else _temperature_on_threshold) | float }}"
-  _temperature_off: "{{ (max(states(_temperature_off_sensor[0]), _temperatute_off_threshold) if _temperature_off_sensor else _temperature_off_threshold) | float }}"
+  _temperature_off: "{{ (max(states(_temperature_off_sensor[0]), _temperature_off_threshold) if _temperature_off_sensor else _temperature_off_threshold) | float }}"
   temperature_off: "{{ min(temperature_on - 1.0, _temperature_off) | float }}"
 
 trigger:
