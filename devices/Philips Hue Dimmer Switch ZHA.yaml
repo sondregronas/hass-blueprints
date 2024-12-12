@@ -110,7 +110,7 @@ blueprint:
       selector:
         action:
 
-mode: restart
+mode: queued
 max_exceeded: silent
 
 variables:
