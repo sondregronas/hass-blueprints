@@ -39,7 +39,7 @@ blueprint:
     notify_message:
       name: "Notification Message"
       description: "Message to include in the notification (can be left blank)"
-      default: ""
+      default: [ ]
       selector:
         object:
 
@@ -64,7 +64,7 @@ blueprint:
     click_action:
       name: "Click Action"
       description: "URL or action to open when the notification is clicked (optional)"
-      default: ""
+      default: [ ]
       selector:
         object:
 
