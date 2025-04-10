@@ -1,0 +1,102 @@
+blueprint:
+  name: SGScript - Snap RTC & Notify
+  description: >
+    Downloads a snapshot from a given URL to a subdirectory inside
+    `www/downloader/snaps_<subdir>`, then sends a notification with optional
+    title, message, image, click action, and timeout. You can also specify a custom
+    notify service target, or default to `notify.everything`.
+  domain: script
+  input:
+    subdir:
+      name: "Subdirectory"
+      description: "You can think of this as a UUID for the camera, to generate a obfuscated URL for the image."
+      selector:
+        text:
+
+    snap_url:
+      name: "Snapshot URL"
+      description: "URL to the snapshot image (e.g., the frame url from go2rtc's API)"
+      selector:
+        text:
+
+    notify_title:
+      name: "Notification Title"
+      description: "Title of the notification"
+      selector:
+        text:
+
+    notify_message:
+      name: "Notification Message"
+      description: "Message to include in the notification (can be left blank)"
+      default: ""
+      selector:
+        text:
+
+    delay:
+      name: "Downloader delay"
+      description: "Delay in milliseconds between downloading and sending the notification (default: 250ms)"
+      default: 250
+      selector:
+        number:
+          min: 0
+          max: 5000
+          unit_of_measurement: ms
+          mode: slider
+
+    notify_target:
+      name: "Notification Target"
+      description: "Notify service to use (e.g., notify.mobile_app_your_phone). Defaults to notify.everything."
+      default: "notify.everything"
+      selector:
+        text:
+
+    click_action:
+      name: "Click Action"
+      description: "URL or action to open when the notification is clicked (optional)"
+      default: ""
+      selector:
+        text:
+
+    timeout:
+      name: "Notification Timeout"
+      description: "Time in seconds before the notification disappears (leave blank for no timeout)"
+      default: ""
+      selector:
+        number:
+          min: 0
+          max: 3600
+          mode: box
+          unit_of_measurement: s
+
+variables:
+  ts: "{{ now().strftime('%d-%m-%Hh-%Mm-%Ss') }}"
+  subdir: !input subdir
+  snap_url: !input snap_url
+  notify_message: !input notify_message
+  notify_title: !input notify_title
+  delay_ms: !input delay
+  notify_target: !input notify_target
+  click_action: !input click_action
+  timeout: !input timeout
+
+sequence:
+  - service: downloader.download_file
+    data:
+      url: "{{ snap_url }}"
+      subdir: "snaps_{{ subdir }}"
+      overwrite: true
+      filename: "snap_{{ ts }}.jpg"
+
+  - delay:
+      milliseconds: "{{ delay_ms }}"
+
+  - service: "{{ notify_target }}"
+    data:
+      message: "{{ notify_message }}"
+      title: "{{ notify_title }}"
+      data:
+        image: "/local/downloader/snaps_{{ subdir }}/snap_{{ ts }}.jpg"
+        clickAction: "{{ click_action }}"
+        timeout: "{{ timeout }}"
+
+mode: single
