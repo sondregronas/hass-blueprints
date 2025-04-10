@@ -10,7 +10,7 @@ blueprint:
       name: "Subdirectory"
       description: "You can think of this as a UUID for the camera, to generate a obfuscated URL for the image."
       selector:
-        text:
+        object:
 
     initial_delay:
       name: "Initial delay"
@@ -27,21 +27,21 @@ blueprint:
       name: "Snapshot URL"
       description: "URL to the snapshot image (e.g., the frame url from go2rtc's API)"
       selector:
-        text:
+        object:
 
     notify_title:
       name: "Notification Title"
       description: "Title of the notification"
       default: "Snapshot"
       selector:
-        text:
+        object:
 
     notify_message:
       name: "Notification Message"
       description: "Message to include in the notification (can be left blank)"
       default: ""
       selector:
-        text:
+        object:
 
     downloader_delay:
       name: "Downloader delay"
@@ -59,14 +59,14 @@ blueprint:
       description: "Notify service to use (e.g., notify.mobile_app_your_phone). Defaults to notify.everything."
       default: "notify.everything"
       selector:
-        text:
+        object:
 
     click_action:
       name: "Click Action"
       description: "URL or action to open when the notification is clicked (optional)"
       default: ""
       selector:
-        text:
+        object:
 
     timeout:
       name: "Notification Timeout"
