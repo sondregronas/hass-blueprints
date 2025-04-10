@@ -3,8 +3,7 @@ blueprint:
   description: >
     Downloads a snapshot from a given URL to a subdirectory inside
     `www/downloader/snaps_<subdir>`, then sends a notification with optional
-    title, message, image, click action, and timeout. You can also specify a custom
-    notify service target, or default to `notify.everything`.
+    title, message, image, click action, timeout, and optional notification actions.
   domain: script
   input:
     subdir:
@@ -33,6 +32,7 @@ blueprint:
     notify_title:
       name: "Notification Title"
       description: "Title of the notification"
+      default: "Snapshot"
       selector:
         text:
 
@@ -79,6 +79,21 @@ blueprint:
           mode: box
           unit_of_measurement: s
 
+    notify_actions:
+      name: "Notification Actions"
+      description: |
+        List of action/title pairs to include in the notification
+        
+        Example:
+        
+        ```yaml
+        - action: SET_DND
+          title: Set to DND
+        ```
+      default: [ ]
+      selector:
+        object:
+
 variables:
   ts: "{{ now().strftime('%d-%m-%Hh-%Mm-%Ss') }}"
   subdir: !input subdir
@@ -90,6 +105,7 @@ variables:
   notify_target: !input notify_target
   click_action: !input click_action
   timeout: !input timeout
+  notify_actions: !input notify_actions
 
 sequence:
   - delay:
@@ -113,5 +129,6 @@ sequence:
         image: "/local/downloader/snaps_{{ subdir }}/snap_{{ ts }}.jpg"
         clickAction: "{{ click_action }}"
         timeout: "{{ timeout }}"
+        actions: "{{ notify_actions }}"
 
 mode: single
