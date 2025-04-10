@@ -13,6 +13,17 @@ blueprint:
       selector:
         text:
 
+    initial_delay:
+      name: "Initial delay"
+      description: "Delay in milliseconds before grabbing a snapshot (default: 500ms)"
+      default: 500
+      selector:
+        number:
+          min: 0
+          max: 5000
+          unit_of_measurement: ms
+          mode: slider
+
     snap_url:
       name: "Snapshot URL"
       description: "URL to the snapshot image (e.g., the frame url from go2rtc's API)"
@@ -32,7 +43,7 @@ blueprint:
       selector:
         text:
 
-    delay:
+    downloader_delay:
       name: "Downloader delay"
       description: "Delay in milliseconds between downloading and sending the notification (default: 250ms)"
       default: 250
@@ -74,12 +85,16 @@ variables:
   snap_url: !input snap_url
   notify_message: !input notify_message
   notify_title: !input notify_title
-  delay_ms: !input delay
+  initial_delay_ms: !input initial_delay
+  downloader_delay_ms: !input downloader_delay
   notify_target: !input notify_target
   click_action: !input click_action
   timeout: !input timeout
 
 sequence:
+  - delay:
+      milliseconds: "{{ initial_delay_ms }}"
+
   - service: downloader.download_file
     data:
       url: "{{ snap_url }}"
@@ -88,7 +103,7 @@ sequence:
       filename: "snap_{{ ts }}.jpg"
 
   - delay:
-      milliseconds: "{{ delay_ms }}"
+      milliseconds: "{{ downloader_delay_ms }}"
 
   - service: "{{ notify_target }}"
     data:
