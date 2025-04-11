@@ -8,19 +8,19 @@ blueprint:
   input:
     subdir:
       name: "Subdirectory"
-      description: "You can think of this as a UUID for the camera, to generate a obfuscated URL for the image."
+      description: "You can think of this as a UUID for the camera, to generate an obfuscated URL for the image."
       selector:
         object:
 
     initial_delay:
       name: "Initial delay"
-      description: "Delay in milliseconds before grabbing a snapshot (default: 500ms)"
-      default: 500
+      description: "Delay in seconds before grabbing a snapshot (default: 2s)"
+      default: 2
       selector:
         number:
           min: 0
-          max: 5000
-          unit_of_measurement: ms
+          max: 30
+          unit_of_measurement: s
           mode: slider
 
     snap_url:
@@ -45,13 +45,13 @@ blueprint:
 
     downloader_delay:
       name: "Downloader delay"
-      description: "Delay in milliseconds between downloading and sending the notification (default: 250ms)"
-      default: 250
+      description: "Delay in seconds between downloading and sending the notification (default: 0.2s)"
+      default: 0.2
       selector:
         number:
           min: 0
-          max: 5000
-          unit_of_measurement: ms
+          max: 2
+          unit_of_measurement: s
           mode: slider
 
     notify_target:
@@ -100,12 +100,14 @@ variables:
   snap_url: !input snap_url
   notify_message: !input notify_message
   notify_title: !input notify_title
-  initial_delay_ms: !input initial_delay
-  downloader_delay_ms: !input downloader_delay
+  initial_delay_s: !input initial_delay
+  downloader_delay_s: !input downloader_delay
   notify_target: !input notify_target
   click_action: !input click_action
   timeout: !input timeout
   notify_actions: !input notify_actions
+  initial_delay_ms: "{{ (initial_delay_s * 1000) | round(0) }}"
+  downloader_delay_ms: "{{ (downloader_delay_s * 1000) | round(0) }}"
 
 sequence:
   - delay:
