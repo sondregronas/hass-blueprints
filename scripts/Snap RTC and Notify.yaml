@@ -132,5 +132,11 @@ sequence:
         clickAction: "{{ click_action }}"
         timeout: "{{ timeout }}"
         actions: "{{ notify_actions }}"
+        subject: "{{ now().strftime('%H:%M') }}"
+        subtitle: "{{ now().strftime('%H:%M') }}"
+        channel: "Snapshot"
+        importance: high
+        visibility: public
+        car_ui: true
 
 mode: single
