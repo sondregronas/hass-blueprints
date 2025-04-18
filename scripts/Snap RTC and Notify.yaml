@@ -125,15 +125,13 @@ sequence:
 
   - service: "{{ notify_target }}"
     data:
-      message: "{{ notify_message }}"
+      message: "{{ notify_message }} - {{ now().strftime('%H:%M') }}"
       title: "{{ notify_title }}"
       data:
         image: "/local/downloader/snaps_{{ subdir }}/snap_{{ ts }}.jpg"
         clickAction: "{{ click_action }}"
         timeout: "{{ timeout }}"
         actions: "{{ notify_actions }}"
-        subject: "{{ now().strftime('%H:%M') }}"
-        subtitle: "{{ now().strftime('%H:%M') }}"
         channel: "Snapshot"
         importance: high
         visibility: public
