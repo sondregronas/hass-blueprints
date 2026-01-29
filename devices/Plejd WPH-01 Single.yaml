@@ -8,8 +8,8 @@ blueprint:
       3 = down
 
     Default behavior (when no override action is provided):
-      - Up: activate scene "scene.AREA_ID_home"
-      - Down: if any light in that area is on, turn off lights in that area; otherwise activate "scene.AREA_ID_dim"
+      - Up: activate scene "scene.'area_friendly_name'_home"
+      - Down: if any light in that area is on, turn off lights in that area; otherwise activate "scene.'area_friendly_name'_dim"
 
     Double click:
       - Optional and disabled by default.
@@ -40,13 +40,6 @@ blueprint:
       default: null
       selector:
         area: { }
-
-    optional_action:
-      name: Any button pressed action
-      description: Optional action to run before every handled press.
-      default: [ ]
-      selector:
-        action: { }
 
     enable_double_click:
       name: Enable double click
@@ -127,9 +120,7 @@ variables:
        | list }}
 
   area: !input area
-  area_name: "{{ (area | default('')) | lower | replace(' ', '_') }}"
-
-  optional_action: !input optional_action
+  area_name: "{{ (area_name(area) | default('')) | lower | replace(' ', '_') }}"
 
   enable_double_click: !input enable_double_click
   double_click_delay_ms: !input double_click_delay_ms
@@ -194,14 +185,10 @@ action:
       is_double: "{{ enable_double_click and old_ms > 0 and new_ms > 0 and delta_ms > 0 and delta_ms <= (double_click_window_ms | int) }}"
 
   - choose:
-      - conditions: "{{ enable_double_click }}"
+      - conditions: "{{ enable_double_click and not is_double }}"
         sequence:
           - delay:
               milliseconds: "{{ double_click_delay_ms }}"
-
-  - choose:
-      - conditions: "{{ optional_action != [] }}"
-        sequence: !input optional_action
 
   - choose:
       # Up
