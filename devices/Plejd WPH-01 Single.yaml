@@ -8,8 +8,8 @@ blueprint:
       3 = down
 
     Default behavior (when no override action is provided):
-      - Up: activate scene "scene.<area>_home"
-      - Down: if any light in that area is on, turn off lights in that area; otherwise activate "scene.<area>_dim"
+      - Up: activate scene "scene.AREA_ID_home"
+      - Down: if any light in that area is on, turn off lights in that area; otherwise activate "scene.AREA_ID_dim"
 
     Double click:
       - Optional and disabled by default.
