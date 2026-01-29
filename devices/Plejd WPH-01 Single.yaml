@@ -11,6 +11,10 @@ blueprint:
       - Up: activate scene "scene.'area_friendly_name'_home"
       - Down: if any light in that area is on, turn off lights in that area; otherwise activate "scene.'area_friendly_name'_dim"
 
+    Any press action:
+      - You can run an extra action on any press (up or down), before the button-specific actions.
+      - This is useful for things like toggling an input_boolean "deactivate motion lights", disabling/enabling other automations, etc.
+
     Double click:
       - Optional and disabled by default.
       - When enabled, this blueprint adds an intentional delay before running actions so it can decide between single and double click.
@@ -65,7 +69,7 @@ blueprint:
 
     single_click_actions:
       name: Single click actions
-      collapsed: false
+      collapsed: true
       input:
         up_1x:
           name: Up
@@ -107,6 +111,16 @@ blueprint:
           selector:
             action: { }
 
+    any_press_action:
+      name: Any press action
+      description: |
+        Runs on any press (up or down), before the button-specific actions.
+
+        Useful for things like toggling an input_boolean "deactivate motion lights", disabling/enabling other automations, etc.
+      default: [ ]
+      selector:
+        action: { }
+
 mode: restart
 max_exceeded: silent
 
@@ -129,6 +143,8 @@ variables:
 
   up_2x: !input up_2x
   down_2x: !input down_2x
+
+  any_press_action: !input any_press_action
 
 trigger:
   - platform: event
@@ -185,6 +201,11 @@ action:
         sequence:
           - delay:
               milliseconds: "{{ double_click_delay_ms }}"
+
+  # Any press action (run before per-button actions)
+  - choose:
+      - conditions: "{{ any_press_action != [] }}"
+        sequence: !input any_press_action
 
   - choose:
       # Up
