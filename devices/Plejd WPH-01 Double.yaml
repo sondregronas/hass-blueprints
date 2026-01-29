@@ -33,7 +33,7 @@ blueprint:
 
   input:
     switches:
-      name: Plejd WPH-01 (double)
+      name: Plejd WPH-01 (double rocker)
       description: Select the Plejd WPH-01 device.
       selector:
         device:

@@ -31,7 +31,7 @@ blueprint:
 
   input:
     switches:
-      name: Plejd WPH-01 (single)
+      name: Plejd WPH-01 (single rocker)
       description: Select the Plejd WPH-01 device.
       selector:
         device:
@@ -45,27 +45,15 @@ blueprint:
       selector:
         area: { }
 
-    enable_double_click:
-      name: Enable double click
-      description: Enables best-effort double click detection. When enabled, actions are delayed.
-      default: false
-      selector:
-        boolean: { }
-
-    double_click_delay_ms:
-      name: Double click delay (ms)
+    any_press_action:
+      name: Any press action
       description: |
-        Only used when double click is enabled.
+        Runs on any press (up or down), before the button-specific actions.
 
-        Adds this delay before running actions and also defines the maximum time between clicks for a double click.
-      default: 1000
+        Useful for things like toggling an input_boolean "deactivate motion lights", disabling/enabling other automations, etc.
+      default: [ ]
       selector:
-        number:
-          min: 300
-          max: 2000
-          step: 50
-          unit_of_measurement: ms
-          mode: slider
+        action: { }
 
     single_click_actions:
       name: Single click actions
@@ -93,6 +81,28 @@ blueprint:
           selector:
             action: { }
 
+    enable_double_click:
+      name: Enable double click
+      description: Enables best-effort double click detection. When enabled, actions are delayed.
+      default: false
+      selector:
+        boolean: { }
+
+    double_click_delay_ms:
+      name: Double click delay (ms)
+      description: |
+        Only used when double click is enabled.
+
+        Adds this delay before running actions and also defines the maximum time between clicks for a double click.
+      default: 1000
+      selector:
+        number:
+          min: 300
+          max: 2000
+          step: 50
+          unit_of_measurement: ms
+          mode: slider
+
     double_click_actions:
       name: Double click actions
       collapsed: true
@@ -110,16 +120,6 @@ blueprint:
           default: [ ]
           selector:
             action: { }
-
-    any_press_action:
-      name: Any press action
-      description: |
-        Runs on any press (up or down), before the button-specific actions.
-
-        Useful for things like toggling an input_boolean "deactivate motion lights", disabling/enabling other automations, etc.
-      default: [ ]
-      selector:
-        action: { }
 
 mode: restart
 max_exceeded: silent
