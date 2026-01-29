@@ -24,9 +24,9 @@ blueprint:
 
     IMPORTANT:
       - This blueprint identifies buttons by the event entity_id suffixes (_2, _3, _4).
-      - Do not rename these event entities in Home Assistant, or make sure the suffixes are preserved.
+      - Do not rename these event entities in Home Assistant, or make sure the name and suffixes are preserved.
 
-    Note: This blueprint relies on the hass-plejd integration to create event entities for the button presses. Right now the trigger is based on state_changed events from these entities, which is not ideal. There are no dedicated event entities in hass-plejd yet as far as I can tell.
+    Note: This blueprint relies on the hass-plejd integration to create event entities for the button presses.
 
   domain: automation
   source_url: https://github.com/sondregronas/hass-blueprints/blob/main/devices/Plejd%20WPH-01%20Double.yaml
@@ -222,11 +222,26 @@ variables:
   left_any_press: !input left_any_press
   right_any_press: !input right_any_press
 
-
+trigger_variables:
+  t_switches: !input switches
+  first_event_entity: "{{ (device_entities(t_switches) | select('match', '^event\\.') | first) }}"
 trigger:
   - platform: event
     event_type: state_changed
-
+    event_data:
+      entity_id: "{{ first_event_entity }}"
+  - platform: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ first_event_entity }}_2"
+  - platform: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ first_event_entity }}_3"
+  - platform: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ first_event_entity }}_4"
 
 condition:
   - condition: template
