@@ -72,7 +72,7 @@ blueprint:
           description: |
             Leave empty to run the default.
 
-            Default: activates scene "scene.'area_friendly_name'_home".
+            Default: activates scene "scene.'area_friendly_name'_home" with a 1 second transition.
           default: [ ]
           selector:
             action: { }
@@ -83,8 +83,8 @@ blueprint:
             Leave empty to run the default.
 
             Default:
-            - If any light in the area is on: turn off the lights.
-            - Otherwise: activates "scene.'area_friendly_name'_dim".
+            - If any light in the area is on: turn off the lights with a 1 second transition.
+            - Otherwise: activates "scene.'area_friendly_name'_dim" with a 1 second transition.
           default: [ ]
           selector:
             action: { }
@@ -206,6 +206,8 @@ action:
                           - service: scene.turn_on
                             target:
                               entity_id: "scene.{{ area_name }}_home"
+                            data:
+                              transition: 1
             default: [ ]
 
       # Down
@@ -226,6 +228,8 @@ action:
                               - service: light.turn_off
                                 target:
                                   area_id: "{{ area }}"
+                                data:
+                                  transition: 1
                         default:
                           - if:
                               - condition: template
@@ -234,4 +238,6 @@ action:
                               - service: scene.turn_on
                                 target:
                                   entity_id: "scene.{{ area_name }}_dim"
+                                data:
+                                  transition: 1
             default: [ ]
