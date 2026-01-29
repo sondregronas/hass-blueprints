@@ -1,0 +1,254 @@
+blueprint:
+  name: SGDevice - Plejd WPH-01 Single
+  description: |
+    Blueprint to integrate the Plejd WPH-01 (single rocker) with Home Assistant.
+
+    Button mapping:
+      1 = up
+      3 = down
+
+    Default behavior (when no override action is provided):
+      - Up: activate scene "scene.<area>_home"
+      - Down: if any light in that area is on, turn off lights in that area; otherwise activate "scene.<area>_dim"
+
+    Double click:
+      - Optional and disabled by default.
+      - When enabled, this blueprint adds an intentional delay before running actions so it can decide between single and double click.
+      - Detection is best-effort and may vary depending on the integration/event timing.
+
+    IMPORTANT:
+      - This blueprint identifies buttons by the event entity_id suffix (_3 for down).
+      - Do not rename these event entities in Home Assistant, or make sure the suffix is preserved.
+
+    Note: This blueprint relies on the hass-plejd integration to create event entities for the button presses. Right now the trigger is based on state_changed events from these entities, which is not ideal. There are no dedicated event entities in hass-plejd yet as far as I can tell.
+
+  domain: automation
+  source_url: https://github.com/sondregronas/hass-blueprints/blob/main/devices/Plejd%20WPH-01%20Single.yaml
+
+  input:
+    switches:
+      name: Plejd WPH-01 (single)
+      description: Select the Plejd WPH-01 device.
+      selector:
+        device:
+          model: WPH-01-LC
+          multiple: false
+
+    area:
+      name: Area (optional)
+      description: Area used by default actions.
+      default: null
+      selector:
+        area: { }
+
+    optional_action:
+      name: Any button pressed action
+      description: Optional action to run before every handled press.
+      default: [ ]
+      selector:
+        action: { }
+
+    enable_double_click:
+      name: Enable double click
+      description: Enables best-effort double click detection. When enabled, actions are delayed.
+      default: false
+      selector:
+        boolean: { }
+
+    double_click_delay_ms:
+      name: Double click delay (ms)
+      description: Added delay before actions when double click is enabled.
+      default: 1000
+      selector:
+        number:
+          min: 300
+          max: 2000
+          step: 50
+          unit_of_measurement: ms
+          mode: slider
+
+    double_click_window_ms:
+      name: Double click window (ms)
+      description: Maximum time between clicks to count as a double click.
+      default: 500
+      selector:
+        number:
+          min: 300
+          max: 2000
+          step: 50
+          unit_of_measurement: ms
+          mode: slider
+
+    single_click_actions:
+      name: Single click actions
+      collapsed: false
+      input:
+        up_1x:
+          name: Up
+          description: Action for up single click.
+          default: [ ]
+          selector:
+            action: { }
+
+        down_1x:
+          name: Down
+          description: Action for down single click.
+          default: [ ]
+          selector:
+            action: { }
+
+    double_click_actions:
+      name: Double click actions
+      collapsed: true
+      input:
+        up_2x:
+          name: Up
+          description: Action for up double click. Only used when double click is enabled.
+          default: [ ]
+          selector:
+            action: { }
+
+        down_2x:
+          name: Down
+          description: Action for down double click. Only used when double click is enabled.
+          default: [ ]
+          selector:
+            action: { }
+
+mode: restart
+max_exceeded: silent
+
+variables:
+  switches: !input switches
+
+  device_event_entities: >
+    {{ device_entities(switches)
+       | select('match', '^event\\.')
+       | list }}
+
+  area: !input area
+  area_name: "{{ (area | default('')) | lower | replace(' ', '_') }}"
+
+  optional_action: !input optional_action
+
+  enable_double_click: !input enable_double_click
+  double_click_delay_ms: !input double_click_delay_ms
+  double_click_window_ms: !input double_click_window_ms
+
+  up_1x: !input up_1x
+  down_1x: !input down_1x
+
+  up_2x: !input up_2x
+  down_2x: !input down_2x
+
+trigger:
+  - platform: event
+    event_type: state_changed
+    id: plejd_state_changed
+    alias: Plejd state_changed
+
+condition:
+  - condition: template
+    value_template: >
+      {% set d = trigger.event.data %}
+      {% set eid = d.entity_id if d is not none else '' %}
+      {% set old = d.old_state if d is not none else none %}
+      {% set new = d.new_state if d is not none else none %}
+      {% set event_type = new.attributes.get('event_type') if (new is not none and new.attributes is not none) else none %}
+      {{
+        eid is string
+        and eid.startswith('event.')
+        and eid in device_event_entities
+        and (old.state | string) not in ['unknown', 'unavailable']
+        and (new.state | string) not in ['unknown', 'unavailable']
+        and (old.state | string) != (new.state | string)
+        and (event_type | string) == 'press'
+      }}
+
+action:
+  - variables:
+      triggered_entity_id: "{{ trigger.event.data.entity_id }}"
+
+      button_id: >
+        {% if triggered_entity_id.endswith('_3') %}3{% else %}1{% endif %}
+
+      old_state_str: "{{ trigger.event.data.old_state.state if trigger.event.data.old_state is not none else '' }}"
+      new_state_str: "{{ trigger.event.data.new_state.state if trigger.event.data.new_state is not none else '' }}"
+
+      old_ms: >
+        {% set ts = as_timestamp(old_state_str) %}
+        {% if ts is number %}
+          {{ (ts * 1000) | int }}
+        {% else %}
+          0
+        {% endif %}
+      new_ms: >
+        {% set ts = as_timestamp(new_state_str) %}
+        {% if ts is number %}
+          {{ (ts * 1000) | int }}
+        {% else %}
+          0
+        {% endif %}
+
+      delta_ms: "{{ (new_ms - old_ms) | int }}"
+      is_double: "{{ enable_double_click and old_ms > 0 and new_ms > 0 and delta_ms > 0 and delta_ms <= (double_click_window_ms | int) }}"
+
+  - choose:
+      - conditions: "{{ enable_double_click }}"
+        sequence:
+          - delay:
+              milliseconds: "{{ double_click_delay_ms }}"
+
+  - choose:
+      - conditions: "{{ optional_action != [] }}"
+        sequence: !input optional_action
+
+  - choose:
+      # Up
+      - conditions: "{{ (button_id | string) == '1' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ enable_double_click and is_double and up_2x != [] }}"
+                sequence: !input up_2x
+              - conditions: "{{ (not enable_double_click) or (not is_double) }}"
+                sequence:
+                  - choose:
+                      - conditions: "{{ up_1x != [] }}"
+                        sequence: !input up_1x
+                    default:
+                      - if:
+                          - condition: template
+                            value_template: "{{ area is not none }}"
+                        then:
+                          - service: scene.turn_on
+                            target:
+                              entity_id: "scene.{{ area_name }}_home"
+            default: [ ]
+
+      # Down
+      - conditions: "{{ (button_id | string) == '3' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ enable_double_click and is_double and down_2x != [] }}"
+                sequence: !input down_2x
+              - conditions: "{{ (not enable_double_click) or (not is_double) }}"
+                sequence:
+                  - choose:
+                      - conditions: "{{ down_1x != [] }}"
+                        sequence: !input down_1x
+                    default:
+                      - choose:
+                          - conditions: "{{ area is not none and (expand(area_entities(area)) | selectattr('domain','eq','light') | selectattr('state', 'eq', 'on') | list | count > 0) }}"
+                            sequence:
+                              - service: light.turn_off
+                                target:
+                                  area_id: "{{ area }}"
+                        default:
+                          - if:
+                              - condition: template
+                                value_template: "{{ area is not none }}"
+                            then:
+                              - service: scene.turn_on
+                                target:
+                                  entity_id: "scene.{{ area_name }}_dim"
+            default: [ ]
