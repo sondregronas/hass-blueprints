@@ -78,14 +78,17 @@ blueprint:
       input:
         up_1x:
           name: Up
-          description: Action for up single click.
+          description: Leave empty to run the default (activate scene "scene.<area>_home").
           default: [ ]
           selector:
             action: { }
 
         down_1x:
           name: Down
-          description: Action for down single click.
+          description: |
+            Leave empty to run the default.
+            - If any light in the area is on: turn off the lights.
+            - Otherwise: activate "scene.<area>_dim".
           default: [ ]
           selector:
             action: { }

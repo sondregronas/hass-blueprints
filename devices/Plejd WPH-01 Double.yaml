@@ -87,28 +87,34 @@ blueprint:
       input:
         left_up_1x:
           name: Left up
-          description: Action for left up single click.
+          description: Leave empty to run the default (activate scene "scene.<left_area>_home").
           default: [ ]
           selector:
             action: { }
 
         left_down_1x:
           name: Left down
-          description: Action for left down single click.
+          description: |
+            Leave empty to run the default.
+            - If any light in the left area is on: turn off the lights.
+            - Otherwise: activate "scene.<left_area>_dim".
           default: [ ]
           selector:
             action: { }
 
         right_up_1x:
           name: Right up
-          description: Action for right up single click.
+          description: Leave empty to run the default (activate scene "scene.<right_area>_home").
           default: [ ]
           selector:
             action: { }
 
         right_down_1x:
           name: Right down
-          description: Action for right down single click.
+          description: |
+            Leave empty to run the default.
+            - If any light in the right area is on: turn off the lights.
+            - Otherwise: activate "scene.<right_area>_dim".
           default: [ ]
           selector:
             action: { }
