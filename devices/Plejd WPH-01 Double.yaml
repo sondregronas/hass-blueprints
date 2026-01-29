@@ -78,7 +78,10 @@ blueprint:
       input:
         left_up_1x:
           name: Left up
-          description: Leave empty to run the default (activate scene "scene.<left_area>_home").
+          description: |
+            Leave empty to run the default.
+
+            Default: activates scene "scene.'area_friendly_name'_home".
           default: [ ]
           selector:
             action: { }
@@ -87,15 +90,20 @@ blueprint:
           name: Left down
           description: |
             Leave empty to run the default.
+
+            Default:
             - If any light in the left area is on: turn off the lights.
-            - Otherwise: activate "scene.<left_area>_dim".
+            - Otherwise: activates "scene.'area_friendly_name'_dim".
           default: [ ]
           selector:
             action: { }
 
         right_up_1x:
           name: Right up
-          description: Leave empty to run the default (activate scene "scene.<right_area>_home").
+          description: |
+            Leave empty to run the default.
+
+            Default: activates scene "scene.'area_friendly_name'_home".
           default: [ ]
           selector:
             action: { }
@@ -104,8 +112,10 @@ blueprint:
           name: Right down
           description: |
             Leave empty to run the default.
+
+            Default:
             - If any light in the right area is on: turn off the lights.
-            - Otherwise: activate "scene.<right_area>_dim".
+            - Otherwise: activates "scene.'area_friendly_name'_dim".
           default: [ ]
           selector:
             action: { }

@@ -69,7 +69,10 @@ blueprint:
       input:
         up_1x:
           name: Up
-          description: Leave empty to run the default (activate scene "scene.<area>_home").
+          description: |
+            Leave empty to run the default.
+
+            Default: activates scene "scene.'area_friendly_name'_home".
           default: [ ]
           selector:
             action: { }
@@ -78,8 +81,10 @@ blueprint:
           name: Down
           description: |
             Leave empty to run the default.
+
+            Default:
             - If any light in the area is on: turn off the lights.
-            - Otherwise: activate "scene.<area>_dim".
+            - Otherwise: activates "scene.'area_friendly_name'_dim".
           default: [ ]
           selector:
             action: { }
