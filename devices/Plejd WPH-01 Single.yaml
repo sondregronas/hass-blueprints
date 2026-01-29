@@ -50,20 +50,11 @@ blueprint:
 
     double_click_delay_ms:
       name: Double click delay (ms)
-      description: Added delay before actions when double click is enabled.
-      default: 1000
-      selector:
-        number:
-          min: 300
-          max: 2000
-          step: 50
-          unit_of_measurement: ms
-          mode: slider
+      description: |
+        Only used when double click is enabled.
 
-    double_click_window_ms:
-      name: Double click window (ms)
-      description: Maximum time between clicks to count as a double click.
-      default: 500
+        Adds this delay before running actions and also defines the maximum time between clicks for a double click.
+      default: 1000
       selector:
         number:
           min: 300
@@ -127,7 +118,6 @@ variables:
 
   enable_double_click: !input enable_double_click
   double_click_delay_ms: !input double_click_delay_ms
-  double_click_window_ms: !input double_click_window_ms
 
   up_1x: !input up_1x
   down_1x: !input down_1x
@@ -138,8 +128,6 @@ variables:
 trigger:
   - platform: event
     event_type: state_changed
-    id: plejd_state_changed
-    alias: Plejd state_changed
 
 condition:
   - condition: template
@@ -185,7 +173,7 @@ action:
         {% endif %}
 
       delta_ms: "{{ (new_ms - old_ms) | int }}"
-      is_double: "{{ enable_double_click and old_ms > 0 and new_ms > 0 and delta_ms > 0 and delta_ms <= (double_click_window_ms | int) }}"
+      is_double: "{{ enable_double_click and delta_ms >= 1 and delta_ms <= (double_click_delay_ms | int) }}"
 
   - choose:
       - conditions: "{{ enable_double_click and not is_double }}"
