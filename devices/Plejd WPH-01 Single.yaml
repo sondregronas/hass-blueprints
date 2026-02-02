@@ -8,7 +8,7 @@ blueprint:
       3 = down
 
     Default behavior (when no override action is provided):
-      - Up: activate scene "scene.'area_friendly_name'_home"
+      - Up: activate scene "scene.'area_friendly_name'_bright"
       - Down: if any light in that area is on, turn off lights in that area; otherwise activate "scene.'area_friendly_name'_dim"
 
     Any press action:
@@ -64,7 +64,7 @@ blueprint:
           description: |
             Leave empty to run the default.
 
-            Default: activates scene "scene.'area_friendly_name'_home" with a 1 second transition.
+            Default: activates scene "scene.'area_friendly_name'_bright" with a 1 second transition.
           default: [ ]
           selector:
             action: { }
@@ -235,7 +235,7 @@ action:
                         then:
                           - service: scene.turn_on
                             target:
-                              entity_id: "scene.{{ area_name }}_home"
+                              entity_id: "scene.{{ area_name }}_bright"
                             data:
                               transition: 1
             default: [ ]
