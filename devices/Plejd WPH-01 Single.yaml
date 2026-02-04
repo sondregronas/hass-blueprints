@@ -190,7 +190,7 @@ action:
       triggered_entity_id: "{{ trigger.event.data.entity_id }}"
 
       button_id: >
-        {% Normalize to "1" (up) and "3" (down), since some switches use 2 and 4 %}
+        {# Normalize to "1" (up) and "3" (down), since some switches use 2 and 4 #}
         {{ "3" if triggered_entity_id.endswith(("_3","_4")) else "1" }}
 
       old_state_str: "{{ trigger.event.data.old_state.state if trigger.event.data.old_state is not none else '' }}"
