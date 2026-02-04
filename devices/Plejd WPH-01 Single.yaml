@@ -157,7 +157,15 @@ trigger:
   - platform: event
     event_type: state_changed
     event_data:
+      entity_id: "{{ first_event_entity }}_2"
+  - platform: event
+    event_type: state_changed
+    event_data:
       entity_id: "{{ first_event_entity }}_3"
+  - platform: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ first_event_entity }}_4"
 
 condition:
   - condition: template
@@ -182,7 +190,8 @@ action:
       triggered_entity_id: "{{ trigger.event.data.entity_id }}"
 
       button_id: >
-        {% if triggered_entity_id.endswith('_3') %}3{% else %}1{% endif %}
+        {% Normalize to "1" (up) and "3" (down), since some switches use 2 and 4 %}
+        {{ "3" if triggered_entity_id.endswith(("_3","_4")) else "1" }}
 
       old_state_str: "{{ trigger.event.data.old_state.state if trigger.event.data.old_state is not none else '' }}"
       new_state_str: "{{ trigger.event.data.new_state.state if trigger.event.data.new_state is not none else '' }}"
