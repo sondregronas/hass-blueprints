@@ -224,10 +224,8 @@ variables:
 
 trigger_variables:
   t_switches: !input switches
-  first_event_entity: "{{ (device_entities(t_switches) | select('match', '^event\\.') | list)[0] }}"
-  second_event_entity: "{{ (device_entities(t_switches) | select('match', '^event\\.') | list)[1] }}"
-  third_event_entity: "{{ (device_entities(t_switches) | select('match', '^event\\.') | list)[2] }}"
-  fourth_event_entity: "{{ (device_entities(t_switches) | select('match', '^event\\.') | list)[3] }}"
+  first_event_entity: "{{ (device_entities(t_switches) | select('match', '^event\\.') | first) }}"
+  first_event_raw: "{{ first_event_entity | string | replace('_1_pressed','') }}"
 trigger:
   - platform: event
     event_type: state_changed
@@ -236,15 +234,31 @@ trigger:
   - platform: event
     event_type: state_changed
     event_data:
-      entity_id: "{{ second_event_entity }}"
+      entity_id: "{{ first_event_entity }}_2"
   - platform: event
     event_type: state_changed
     event_data:
-      entity_id: "{{ third_event_entity }}"
+      entity_id: "{{ first_event_entity }}_3"
   - platform: event
     event_type: state_changed
     event_data:
-      entity_id: "{{ fourth_event_entity }}"
+      entity_id: "{{ first_event_entity }}_4"
+  - platform: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ first_event_raw }}_1_pressed"
+  - platform: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ first_event_raw }}_2_pressed"
+  - platform: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ first_event_raw }}_3_pressed"
+  - platform: event
+    event_type: state_changed
+    event_data:
+      entity_id: "{{ first_event_raw }}_4_pressed"
 
 condition:
   - condition: template
@@ -266,9 +280,17 @@ condition:
 
 action:
   - variables:
-      triggered_entity_id: "{{ trigger.event.data.entity_id }}"
-
-      button_id: { % set eid = triggered_entity_id % }
+      triggering_entity: "{{ trigger.event.data.entity_id }}"
+      button_id: >
+        {% if "_2" in triggering_entity %}
+          2
+        {% elif "_3" in triggering_entity %}
+          3
+        {% elif "_4" in triggering_entity %}
+          4
+        {% else %}
+          1
+        {% endif %}
 
       old_state_str: "{{ trigger.event.data.old_state.state if trigger.event.data.old_state is not none else '' }}"
       new_state_str: "{{ trigger.event.data.new_state.state if trigger.event.data.new_state is not none else '' }}"
