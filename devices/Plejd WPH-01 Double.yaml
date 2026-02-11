@@ -224,7 +224,10 @@ variables:
 
 trigger_variables:
   t_switches: !input switches
-  first_event_entity: "{{ (device_entities(t_switches) | select('match', '^event\\.') | first) }}"
+  first_event_entity: "{{ (device_entities(t_switches) | select('match', '^event\\.') | list)[0] }}"
+  second_event_entity: "{{ (device_entities(t_switches) | select('match', '^event\\.') | list)[1] }}"
+  third_event_entity: "{{ (device_entities(t_switches) | select('match', '^event\\.') | list)[2] }}"
+  fourth_event_entity: "{{ (device_entities(t_switches) | select('match', '^event\\.') | list)[3] }}"
 trigger:
   - platform: event
     event_type: state_changed
@@ -233,15 +236,15 @@ trigger:
   - platform: event
     event_type: state_changed
     event_data:
-      entity_id: "{{ first_event_entity }}_2"
+      entity_id: "{{ second_event_entity }}"
   - platform: event
     event_type: state_changed
     event_data:
-      entity_id: "{{ first_event_entity }}_3"
+      entity_id: "{{ third_event_entity }}"
   - platform: event
     event_type: state_changed
     event_data:
-      entity_id: "{{ first_event_entity }}_4"
+      entity_id: "{{ fourth_event_entity }}"
 
 condition:
   - condition: template
@@ -265,18 +268,7 @@ action:
   - variables:
       triggered_entity_id: "{{ trigger.event.data.entity_id }}"
 
-      # Map button id from entity_id suffix.
-      #   event.<name>   -> 1
-      #   event.<name>_2 -> 2
-      #   event.<name>_3 -> 3
-      #   event.<name>_4 -> 4
-      button_id: >
-        {% set eid = triggered_entity_id %}
-        {% if eid.endswith('_2') %}2
-        {% elif eid.endswith('_3') %}3
-        {% elif eid.endswith('_4') %}4
-        {% else %}1
-        {% endif %}
+      button_id: { % set eid = triggered_entity_id % }
 
       old_state_str: "{{ trigger.event.data.old_state.state if trigger.event.data.old_state is not none else '' }}"
       new_state_str: "{{ trigger.event.data.new_state.state if trigger.event.data.new_state is not none else '' }}"
