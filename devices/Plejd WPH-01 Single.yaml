@@ -149,46 +149,23 @@ variables:
 trigger_variables:
   t_switches: !input switches
   first_event_entity: "{{ (device_entities(t_switches) | select('match', '^event\\.') | first) }}"
-  first_event_base: "{{
-    (device_entities(t_switches) | select('match', '^event\\.') | first)
-    | replace('_pressed','')
-    | regex_replace('_(1|2|3|4)$','')
-  }}"
-
-  event_entity_1: >
-    {% set ents = device_entities(t_switches) %}
-    {% set c = [first_event_base ~ '_1_pressed', first_event_base] %}
-    {{ (c | select('in', ents) | list | first) | default(c[0]) }}
-  event_entity_2: >
-    {% set ents = device_entities(t_switches) %}
-    {% set c = [first_event_base ~ '_2_pressed', first_event_base ~ '_2'] %}
-    {{ (c | select('in', ents) | list | first) | default(c[0]) }}
-  event_entity_3: >
-    {% set ents = device_entities(t_switches) %}
-    {% set c = [first_event_base ~ '_3_pressed', first_event_base ~ '_3'] %}
-    {{ (c | select('in', ents) | list | first) | default(c[0]) }}
-  event_entity_4: >
-    {% set ents = device_entities(t_switches) %}
-    {% set c = [first_event_base ~ '_4_pressed', first_event_base ~ '_4'] %}
-    {{ (c | select('in', ents) | list | first) | default(c[0]) }}
-
 trigger:
   - platform: event
     event_type: state_changed
     event_data:
-      entity_id: "{{ event_entity_1 }}"
+      entity_id: "{{ first_event_entity }}"
   - platform: event
     event_type: state_changed
     event_data:
-      entity_id: "{{ event_entity_2 }}"
+      entity_id: "{{ first_event_entity }}_2"
   - platform: event
     event_type: state_changed
     event_data:
-      entity_id: "{{ event_entity_3 }}"
+      entity_id: "{{ first_event_entity }}_3"
   - platform: event
     event_type: state_changed
     event_data:
-      entity_id: "{{ event_entity_4 }}"
+      entity_id: "{{ first_event_entity }}_4"
 
 condition:
   - condition: template
