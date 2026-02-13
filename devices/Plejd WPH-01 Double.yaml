@@ -291,23 +291,17 @@ action:
           1
         {% endif %}
 
-      old_state_str: "{{ trigger.event.data.old_state.state if trigger.event.data.old_state is not none else '' }}"
-      new_state_str: "{{ trigger.event.data.new_state.state if trigger.event.data.new_state is not none else '' }}"
+      # Be defensive: old_state/new_state can be None or have state = unknown/unavailable
+      old_state_str: >
+        {% set os = trigger.event.data.old_state %}
+        {{ os.state if os is not none else '' }}
+      new_state_str: >
+        {% set ns = trigger.event.data.new_state %}
+        {{ ns.state if ns is not none else '' }}
 
-      old_ms: >
-        {% set ts = as_timestamp(old_state_str) %}
-        {% if ts is number %}
-          {{ (ts * 1000) | int }}
-        {% else %}
-          0
-        {% endif %}
-      new_ms: >
-        {% set ts = as_timestamp(new_state_str) %}
-        {% if ts is number %}
-          {{ (ts * 1000) | int }}
-        {% else %}
-          0
-        {% endif %}
+      # as_timestamp throws on bad input unless default is provided
+      old_ms: "{{ (as_timestamp(old_state_str, default=0) * 1000) | int }}"
+      new_ms: "{{ (as_timestamp(new_state_str, default=0) * 1000) | int }}"
 
       delta_ms: "{{ (new_ms - old_ms) | int }}"
       is_double: "{{ enable_double_click and delta_ms >= 1 and delta_ms <= (double_click_delay_ms | int) }}"
