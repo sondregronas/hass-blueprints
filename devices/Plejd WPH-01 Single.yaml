@@ -196,7 +196,6 @@ condition:
         eid is string
         and eid.startswith('event.')
         and eid in device_event_entities
-        and (old.state | string) not in ['unknown', 'unavailable']
         and (new.state | string) not in ['unknown', 'unavailable']
         and (old.state | string) != (new.state | string)
         and (event_type | string) == 'press'
