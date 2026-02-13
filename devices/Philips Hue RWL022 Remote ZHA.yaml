@@ -1,0 +1,255 @@
+blueprint:
+  name: SGDevice - Philips Hue RWL022 Remote (ZHA)
+  description: |
+    Blueprint to integrate the Philips Hue RWL022 Dimmer Switch with Home Assistant via ZHA.
+
+    Button mapping (ZHA commands):
+      - On button: fires "on" (some firmwares/devices may also emit "off_with_effect"; treated the same by default)
+      - Brightness Up: fires "step" with step_mode Up (repeats every 1s while held)
+      - Brightness Down: fires "step" with step_mode Down (repeats every 1s while held)
+      - Off button (Hue): fires "recall" command
+
+    Default behavior (when no override action is provided):
+      - On: activates scene "scene.'area_friendly_name'_bright" (1s transition)
+      - Up: increases brightness by step percentage (default 20%) with 1.1s transition
+      - Down: decreases brightness by step percentage (default 20%) with 1.1s transition
+      - Off: if any light in that area is on, turn off lights; otherwise activates "scene.'area_friendly_name'_dim" (1s transition)
+
+    Any press action:
+      - You can run an extra action on any button press, before the button-specific actions.
+      - Useful for things like toggling an input_boolean "deactivate motion lights", disabling/enabling other automations, etc.
+
+    Note: This blueprint relies on ZHA integration events.
+
+  domain: automation
+  source_url: https://github.com/sondregronas/hass-blueprints/blob/main/devices/Philips%20Hue%20RWL022%20Remote%20ZHA.yaml
+
+  input:
+    remote:
+      name: Philips Hue RWL022 Remote
+      description: Select the Philips Hue RWL022 Dimmer Switch device.
+      selector:
+        device:
+          integration: zha
+          manufacturer: Signify Netherlands B.V.
+          entity:
+            domain: sensor
+            device_class: battery
+
+    area:
+      name: Area (optional)
+      description: Area used by default actions (uses the area friendly name for scene names).
+      default: null
+      selector:
+        area: { }
+
+    brightness_step:
+      name: Brightness step (%)
+      description: |
+        Percentage to increase/decrease brightness when pressing up/down buttons.
+        Used by the default up/down actions.
+      default: 20
+      selector:
+        number:
+          min: 1
+          max: 50
+          step: 1
+          unit_of_measurement: "%"
+          mode: slider
+
+    any_press_action:
+      name: Any press action
+      description: |
+        Runs on any button press, before the button-specific actions.
+
+        Useful for things like toggling an input_boolean "deactivate motion lights", disabling/enabling other automations, etc.
+      default: [ ]
+      selector:
+        action: { }
+
+    button_actions:
+      name: Button actions
+      collapsed: true
+      input:
+        on_action:
+          name: On button
+          description: |
+            Leave empty to run the default.
+
+            Default: activates scene "scene.'area_friendly_name'_bright" with a 1 second transition.
+          default: [ ]
+          selector:
+            action: { }
+
+        up_action:
+          name: Up button
+          description: |
+            Leave empty to run the default.
+
+            Default: increases brightness by step percentage with 1.1 second transition.
+            
+            Note: Fires repeatedly every 1 second while holding the button, with the same parameters
+          default: [ ]
+          selector:
+            action: { }
+
+        down_action:
+          name: Down button
+          description: |
+            Leave empty to run the default.
+
+            Default: decreases brightness by step percentage with 1.1 second transition.
+            
+            Note: Fires repeatedly every 1 second while holding the button, with the same parameters
+          default: [ ]
+          selector:
+            action: { }
+
+        off_action:
+          name: Off button (Hue)
+          description: |
+            Leave empty to run the default.
+
+            Default:
+            - If any light in the area is on: turn off the lights with a 1 second transition.
+            - Otherwise: activates "scene.'area_friendly_name'_dim" with a 1 second transition.
+          default: [ ]
+          selector:
+            action: { }
+
+mode: restart
+max_exceeded: silent
+
+variables:
+  remote: !input remote
+
+  area: !input area
+  area_name: "{{ (area_name(area) | default('')) | lower | replace(' ', '_') }}"
+  light_entities: "{{ expand(area_entities(area)) | selectattr('domain', 'eq', 'light') | map(attribute='entity_id') | list if area else [] }}"
+
+  brightness_step: !input brightness_step
+
+  any_press_action: !input any_press_action
+
+  on_action: !input on_action
+  up_action: !input up_action
+  down_action: !input down_action
+  off_action: !input off_action
+
+trigger_variables:
+  t_remote: !input remote
+
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: "{{ t_remote }}"
+
+condition: [ ]
+
+action:
+  - variables:
+      command: "{{ trigger.event.data.command }}"
+      raw_params: "{{ trigger.event.data.params }}"
+      raw_args: "{{ trigger.event.data.args }}"
+      step_mode: >
+        {% set p = trigger.event.data.params %}
+        {% set a = trigger.event.data.args %}
+        {% if p is mapping and p.step_mode is defined %}
+          {{ p.step_mode | string }}
+        {% elif a is iterable and a | length > 0 %}
+          {{ a[0] | string }}
+        {% else %}
+        
+        {% endif %}
+
+  # Any press action (run before per-button actions)
+  - choose:
+      - conditions: "{{ any_press_action != [] }}"
+        sequence: !input any_press_action
+
+  - choose:
+      # On button (fires "on" or "off" command, both treated as on)
+      - conditions: "{{ command in ['on', 'off_with_effect'] }}"
+        sequence:
+          - choose:
+              - conditions: "{{ on_action != [] }}"
+                sequence: !input on_action
+            default:
+              - if:
+                  - condition: template
+                    value_template: "{{ area is not none }}"
+                then:
+                  - service: scene.turn_on
+                    target:
+                      entity_id: "scene.{{ area_name }}_bright"
+                    data:
+                      transition: 1
+
+      # Up button (step with step_mode Up)
+      - conditions: "{{ command == 'step' and 'Up' in (step_mode | string) }}"
+        sequence:
+          - choose:
+              - conditions: "{{ up_action != [] }}"
+                sequence: !input up_action
+            default:
+              - if:
+                  - condition: template
+                    value_template: "{{ area is not none }}"
+                then:
+                  - repeat:
+                      for_each: "{{ light_entities }}"
+                      sequence:
+                        - service: light.turn_on
+                          target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            brightness_step_pct: "{{ brightness_step }}"
+                            transition: 1.1
+
+      # Down button (step with step_mode Down)
+      - conditions: "{{ command == 'step' and 'Down' in (step_mode | string) }}"
+        sequence:
+          - choose:
+              - conditions: "{{ down_action != [] }}"
+                sequence: !input down_action
+            default:
+              - if:
+                  - condition: template
+                    value_template: "{{ area is not none }}"
+                then:
+                  - repeat:
+                      for_each: "{{ light_entities }}"
+                      sequence:
+                        - service: light.turn_on
+                          target:
+                            entity_id: "{{ repeat.item }}"
+                          data:
+                            brightness_step_pct: "{{ -brightness_step }}"
+                            transition: 1.1
+
+      # Off button (Hue button - fires "recall" command)
+      - conditions: "{{ command == 'recall' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ off_action != [] }}"
+                sequence: !input off_action
+            default:
+              - choose:
+                  - conditions: "{{ area is not none and (expand(area_entities(area)) | selectattr('domain','eq','light') | selectattr('state', 'eq', 'on') | list | count > 0) }}"
+                    sequence:
+                      - service: light.turn_off
+                        target:
+                          area_id: "{{ area }}"
+                        data:
+                          transition: 1
+                default:
+                  - if:
+                      - condition: template
+                        value_template: "{{ area is not none }}"
+                    then:
+                      - service: scene.turn_on
+                        target:
+                          entity_id: "scene.{{ area_name }}_dim"
+                        data:
+                          transition: 1
