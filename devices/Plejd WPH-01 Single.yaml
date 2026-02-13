@@ -208,7 +208,7 @@ action:
         {% if "_3" in triggering_entity %}
           3
         {% elif "_4" in triggering_entity %}
-          4
+          3
         {% else %}
           1
         {% endif %}
