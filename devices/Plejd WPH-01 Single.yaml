@@ -192,13 +192,22 @@ condition:
       {% set old = d.old_state if d is not none else none %}
       {% set new = d.new_state if d is not none else none %}
       {% set event_type = new.attributes.get('event_type') if (new is not none and new.attributes is not none) else none %}
+
+      {# Allow old_state to be unknown/unavailable only if it's been that way > 30s #}
+      {% set old_state = (old.state | string) if old is not none else '' %}
+      {% set new_state = (new.state | string) if new is not none else '' %}
+      {% set old_is_bad = old_state in ['unknown', 'unavailable'] %}
+      {% set old_last_changed_ts = as_timestamp(old.last_changed, default=none) if old is not none else none %}
+      {% set old_bad_long_enough = old_is_bad and (old_last_changed_ts is number) and ((as_timestamp(now()) - old_last_changed_ts) > 30) %}
+      {% set old_ok = (not old_is_bad) or old_bad_long_enough %}
+
       {{
         eid is string
         and eid.startswith('event.')
         and eid in device_event_entities
-        and (new.state | string) not in ['unknown', 'unavailable']
-        and (old.state | string) not in ['unknown', 'unavailable']
-        and (old.state | string) != (new.state | string)
+        and new_state not in ['unknown', 'unavailable']
+        and old_ok
+        and old_state != new_state
         and (event_type | string) == 'press'
       }}
 
