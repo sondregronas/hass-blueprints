@@ -3,17 +3,24 @@ blueprint:
   description: >
     Downloads a snapshot from a given URL to a subdirectory inside
     `www/downloader/snaps_<subdir>`, then sends a notification with optional
-    title, message, image, click action, timeout, notification channel,
-    importance, and notification actions.
+    title, message, image, click action, timeout, channel, importance,
+    vibration pattern, and notification actions.
 
-    For Android alarm-style notifications, set the channel to
-    `alarm_stream`. This automatically adds `ttl: 0` and `priority: high`.
+    The channel controls which Android notification channel is used.
+    Security and alarm_stream have distinctive automatic vibration patterns.
+
+    High and maximum importance request immediate notification delivery
+    using priority high and ttl 0.
+
+    The alarm_stream channel uses the Android alarm audio stream.
   domain: script
 
   input:
     subdir:
       name: "Subdirectory"
-      description: "You can think of this as a UUID for the camera, to generate an obfuscated URL for the image."
+      description: >
+        You can think of this as a UUID for the camera, to generate an
+        obfuscated URL for the image.
       selector:
         object:
 
@@ -30,7 +37,8 @@ blueprint:
 
     snap_url:
       name: "Snapshot URL"
-      description: "URL to the snapshot image (e.g., the frame url from go2rtc's API)"
+      description: >
+        URL to the snapshot image (e.g., the frame url from go2rtc's API)
       selector:
         object:
 
@@ -43,14 +51,17 @@ blueprint:
 
     notify_message:
       name: "Notification Message"
-      description: "Message to include in the notification (can be left blank)"
+      description: >
+        Message to include in the notification (can be left blank)
       default: [ ]
       selector:
         object:
 
     downloader_delay:
       name: "Downloader delay"
-      description: "Delay in seconds between downloading and sending the notification (default: 0.2s)"
+      description: >
+        Delay in seconds between downloading and sending the notification
+        (default: 0.2s)
       default: 0.2
       selector:
         number:
@@ -61,21 +72,26 @@ blueprint:
 
     notify_target:
       name: "Notification Target"
-      description: "Notify service to use (e.g., notify.mobile_app_your_phone). Defaults to notify.everything."
+      description: >
+        Notify service to use (e.g., notify.mobile_app_your_phone).
+        Defaults to notify.everything.
       default: "notify.everything"
       selector:
         object:
 
     click_action:
       name: "Click Action"
-      description: "URL or action to open when the notification is clicked (optional)"
+      description: >
+        URL or action to open when the notification is clicked (optional)
       default: [ ]
       selector:
         object:
 
     timeout:
       name: "Notification Timeout"
-      description: "Time in seconds before the notification disappears (leave blank for no timeout)"
+      description: >
+        Time in seconds before the notification disappears
+        (leave blank for no timeout)
       default: ""
       selector:
         number:
@@ -87,26 +103,38 @@ blueprint:
     channel:
       name: "Notification Channel"
       description: >
-        Android notification channel to use. Defaults to Snapshot.
-        Select alarm_stream for an alarm-style notification. When
-        alarm_stream is selected, ttl: 0 and priority: high are added
-        automatically.
+        Android notification channel to use.
+
+        Snapshot is the normal channel.
+        Security is intended for security-related events.
+        Motion and Doorbell are separate channels that can be configured
+        independently in Android.
+
+        Alarm Stream uses the Android alarm audio stream and is intended
+        for genuinely urgent notifications.
       default: "Snapshot"
       selector:
         select:
           options:
             - label: "Snapshot"
               value: "Snapshot"
+            - label: "Security"
+              value: "Security"
+            - label: "Motion"
+              value: "Motion"
+            - label: "Doorbell"
+              value: "Doorbell"
             - label: "Alarm Stream"
               value: "alarm_stream"
-          custom_value: true
           mode: dropdown
 
     importance:
       name: "Notification Importance"
       description: >
-        Android notification channel importance. Maximum is the highest
-        available importance level.
+        Android notification channel importance.
+
+        High and Maximum request immediate notification delivery using
+        priority high and ttl 0.
       default: "high"
       selector:
         select:
@@ -121,6 +149,32 @@ blueprint:
               value: "high"
             - label: "Maximum"
               value: "max"
+          mode: dropdown
+
+    vibration_pattern:
+      name: "Vibration Pattern"
+      description: >
+        Select Auto to use a channel-specific vibration pattern.
+
+        Security uses a distinctive double pulse.
+        Alarm Stream uses a longer repeating alarm pattern.
+
+        Custom patterns use milliseconds in alternating off/on order.
+        Example: 100, 500, 100, 500
+      default: "auto"
+      selector:
+        select:
+          options:
+            - label: "Auto"
+              value: "auto"
+            - label: "None"
+              value: "none"
+            - label: "Short"
+              value: "100, 100"
+            - label: "Double"
+              value: "100, 500, 100, 500"
+            - label: "Alarm"
+              value: "100, 1000, 100, 1000, 100, 1000"
           mode: dropdown
 
     notify_actions:
@@ -140,6 +194,7 @@ blueprint:
 
 variables:
   ts: "{{ now().strftime('%d-%m-%Hh-%Mm-%Ss') }}"
+
   subdir: !input subdir
   snap_url: !input snap_url
   notify_message: !input notify_message
@@ -151,10 +206,33 @@ variables:
   timeout: !input timeout
   channel: !input channel
   importance: !input importance
+  vibration_pattern: !input vibration_pattern
   notify_actions: !input notify_actions
 
-  initial_delay_ms: "{{ (initial_delay_s * 1000) | round(0) }}"
-  downloader_delay_ms: "{{ (downloader_delay_s * 1000) | round(0) }}"
+  initial_delay_ms: >
+    {{ (initial_delay_s * 1000) | round(0) }}
+
+  downloader_delay_ms: >
+    {{ (downloader_delay_s * 1000) | round(0) }}
+
+  notification_priority: >
+    {{ 'high' if importance in ['high', 'max'] else none }}
+
+  notification_ttl: >
+    {{ 0 if importance in ['high', 'max'] else none }}
+
+  vibration_pattern_value: >
+    {% if vibration_pattern == 'auto' %}
+      {% if channel in ['Security', 'alarm_stream'] %}
+        100, 1000, 100, 1000, 100, 1000
+      {% else %}
+        none
+      {% endif %}
+    {% elif vibration_pattern == 'none' %}
+      none
+    {% else %}
+      {{ vibration_pattern }}
+    {% endif %}
 
 sequence:
   - delay:
@@ -181,14 +259,10 @@ sequence:
         actions: "{{ notify_actions }}"
         channel: "{{ channel }}"
         importance: "{{ importance }}"
+        vibrationPattern: "{{ vibration_pattern_value }}"
         visibility: public
         car_ui: true
-
-        # Android alarm-stream notifications need these values.
-        # They are omitted entirely for normal notifications.
-        {% if channel == 'alarm_stream' %}
-        ttl: 0
-        priority: high
-        {% endif %}
+        priority: "{{ notification_priority }}"
+        ttl: "{{ notification_ttl }}"
 
 mode: single
