@@ -54,6 +54,30 @@ blueprint:
       selector:
         area: { }
 
+    cycle_scenes:
+      name: Cycle scenes
+      description: |
+        When enabled, Up and Down use the configured area's bright/dim scenes
+        instead of the normal scene/off behavior. Bright and dim scene lists
+        wrap at their ends. Enabled by default.
+      default: true
+      selector:
+        boolean: { }
+
+    scene_time_start:
+      name: Scene daytime start
+      description: Preferred brightest/dim scenes are used from this time.
+      default: "10:00:00"
+      selector:
+        time: { }
+
+    scene_time_end:
+      name: Scene daytime end
+      description: Preferred brightest/dim scenes are used until this time.
+      default: "21:00:00"
+      selector:
+        time: { }
+
     any_press_actions:
       name: Any press actions
       collapsed: true
@@ -204,6 +228,9 @@ variables:
 
   left_area_name: "{{ (left_area | default('')) | lower | replace(' ', '_') }}"
   right_area_name: "{{ (area_name(right_area) | default('')) | lower | replace(' ', '_') }}"
+  cycle_scenes: !input cycle_scenes
+  scene_time_start: !input scene_time_start
+  scene_time_end: !input scene_time_end
 
   enable_double_click: !input enable_double_click
   double_click_delay_ms: !input double_click_delay_ms
@@ -315,6 +342,36 @@ action:
 
       delta_ms: "{{ (new_ms - old_ms) | int }}"
       is_double: "{{ enable_double_click and delta_ms >= 1 and delta_ms <= (double_click_delay_ms | int) }}"
+      selected_area: "{{ left_area if (button_id | string) in ['1', '3'] else right_area }}"
+      selected_area_name: "{{ left_area_name if (button_id | string) in ['1', '3'] else right_area_name }}"
+      lights_are_on: "{{ expand(area_entities(selected_area)) | selectattr('domain', 'eq', 'light') | selectattr('state', 'eq', 'on') | list | count > 0 if selected_area else false }}"
+      daytime: >
+        {% set now_time = now().strftime('%H:%M:%S') %}
+        {% if scene_time_start <= scene_time_end %}
+          {{ scene_time_start <= now_time < scene_time_end }}
+        {% else %}
+          {{ now_time >= scene_time_start or now_time < scene_time_end }}
+        {% endif %}
+      scene_entities: >
+        {{ states.scene
+          | selectattr('entity_id', 'in', [
+              'scene.' ~ selected_area_name ~ '_bright',
+              'scene.' ~ selected_area_name ~ '_brighter',
+              'scene.' ~ selected_area_name ~ '_brightest',
+              'scene.' ~ selected_area_name ~ '_dim',
+              'scene.' ~ selected_area_name ~ '_dimmer',
+              'scene.' ~ selected_area_name ~ '_dimmest'
+            ])
+          | map(attribute='entity_id')
+          | list }}
+      last_scene: >
+        {{ (states.scene
+          | selectattr('entity_id', 'in', scene_entities)
+          | sort(attribute='last_changed')
+          | map(attribute='entity_id')
+          | list
+          | last)
+          | default('', true) }}
 
   - choose:
       - conditions: "{{ enable_double_click and not is_double }}"
@@ -348,15 +405,40 @@ action:
                       - conditions: "{{ left_up_1x != [] }}"
                         sequence: !input left_up_1x
                     default:
-                      - if:
-                          - condition: template
-                            value_template: "{{ left_area is not none }}"
-                        then:
-                          - service: scene.turn_on
-                            target:
-                              entity_id: "scene.{{ left_area_name }}_bright"
-                            data:
-                              transition: 1
+                      - choose:
+                          - conditions: "{{ left_area is not none and cycle_scenes }}"
+                            sequence:
+                              - variables:
+                                  bright_scenes: >
+                                    {{ [
+                                      'scene.' ~ left_area_name ~ '_bright',
+                                      'scene.' ~ left_area_name ~ '_brighter',
+                                      'scene.' ~ left_area_name ~ '_brightest'
+                                    ] | select('in', scene_entities) | list }}
+                                  preferred_scene: >
+                                    {% if daytime %}{{ 'scene.' ~ left_area_name ~ '_brightest' }}{% else %}{{ 'scene.' ~ left_area_name ~ '_bright' }}{% endif %}
+                                  next_scene: >
+                                    {% set current = bright_scenes.index(last_scene) if last_scene in bright_scenes else -1 %}
+                                    {% if not lights_are_on %}{{ bright_scenes[0] if bright_scenes else '' }}{% elif current >= 0 %}{{ bright_scenes[(current + 1) % (bright_scenes | length)] }}{% elif preferred_scene in bright_scenes %}{{ preferred_scene }}{% else %}{{ bright_scenes[0] if bright_scenes else '' }}{% endif %}
+                              - if:
+                                  - condition: template
+                                    value_template: "{{ next_scene != '' }}"
+                                then:
+                                  - service: scene.turn_on
+                                    target:
+                                      entity_id: "{{ next_scene }}"
+                                    data:
+                                      transition: 1
+                        default:
+                          - if:
+                              - condition: template
+                                value_template: "{{ left_area is not none }}"
+                            then:
+                              - service: scene.turn_on
+                                target:
+                                  entity_id: "scene.{{ left_area_name }}_bright"
+                                data:
+                                  transition: 1
             default: [ ]
 
       # Right up (2)
@@ -371,15 +453,40 @@ action:
                       - conditions: "{{ right_up_1x != [] }}"
                         sequence: !input right_up_1x
                     default:
-                      - if:
-                          - condition: template
-                            value_template: "{{ right_area is not none }}"
-                        then:
-                          - service: scene.turn_on
-                            target:
-                              entity_id: "scene.{{ right_area_name }}_bright"
-                            data:
-                              transition: 1
+                      - choose:
+                          - conditions: "{{ right_area is not none and cycle_scenes }}"
+                            sequence:
+                              - variables:
+                                  bright_scenes: >
+                                    {{ [
+                                      'scene.' ~ right_area_name ~ '_bright',
+                                      'scene.' ~ right_area_name ~ '_brighter',
+                                      'scene.' ~ right_area_name ~ '_brightest'
+                                    ] | select('in', scene_entities) | list }}
+                                  preferred_scene: >
+                                    {% if daytime %}{{ 'scene.' ~ right_area_name ~ '_brightest' }}{% else %}{{ 'scene.' ~ right_area_name ~ '_bright' }}{% endif %}
+                                  next_scene: >
+                                    {% set current = bright_scenes.index(last_scene) if last_scene in bright_scenes else -1 %}
+                                    {% if not lights_are_on %}{{ bright_scenes[0] if bright_scenes else '' }}{% elif current >= 0 %}{{ bright_scenes[(current + 1) % (bright_scenes | length)] }}{% elif preferred_scene in bright_scenes %}{{ preferred_scene }}{% else %}{{ bright_scenes[0] if bright_scenes else '' }}{% endif %}
+                              - if:
+                                  - condition: template
+                                    value_template: "{{ next_scene != '' }}"
+                                then:
+                                  - service: scene.turn_on
+                                    target:
+                                      entity_id: "{{ next_scene }}"
+                                    data:
+                                      transition: 1
+                        default:
+                          - if:
+                              - condition: template
+                                value_template: "{{ right_area is not none }}"
+                            then:
+                              - service: scene.turn_on
+                                target:
+                                  entity_id: "scene.{{ right_area_name }}_bright"
+                                data:
+                                  transition: 1
             default: [ ]
 
       # Left down (3)
@@ -395,23 +502,48 @@ action:
                         sequence: !input left_down_1x
                     default:
                       - choose:
-                          - conditions: "{{ left_area is not none and (expand(area_entities(left_area)) | selectattr('domain','eq','light') | selectattr('state', 'eq', 'on') | list | count > 0) }}"
+                          - conditions: "{{ left_area is not none and cycle_scenes }}"
                             sequence:
-                              - service: light.turn_off
-                                target:
-                                  area_id: "{{ left_area }}"
-                                data:
-                                  transition: 1
+                              - variables:
+                                  dim_scenes: >
+                                    {{ [
+                                      'scene.' ~ left_area_name ~ '_dim',
+                                      'scene.' ~ left_area_name ~ '_dimmer',
+                                      'scene.' ~ left_area_name ~ '_dimmest'
+                                    ] | select('in', scene_entities) | list }}
+                                  preferred_scene: >
+                                    {% if daytime %}{{ 'scene.' ~ left_area_name ~ '_dim' }}{% else %}{{ 'scene.' ~ left_area_name ~ '_dimmer' }}{% endif %}
+                                  next_scene: >
+                                    {% set current = dim_scenes.index(last_scene) if last_scene in dim_scenes else -1 %}
+                                    {% if not lights_are_on %}{{ dim_scenes[0] if dim_scenes else '' }}{% elif current >= 0 %}{{ dim_scenes[(current + 1) % (dim_scenes | length)] }}{% elif preferred_scene in dim_scenes %}{{ preferred_scene }}{% else %}{{ dim_scenes[0] if dim_scenes else '' }}{% endif %}
+                              - if:
+                                  - condition: template
+                                    value_template: "{{ next_scene != '' }}"
+                                then:
+                                  - service: scene.turn_on
+                                    target:
+                                      entity_id: "{{ next_scene }}"
+                                    data:
+                                      transition: 1
                         default:
-                          - if:
-                              - condition: template
-                                value_template: "{{ left_area is not none }}"
-                            then:
-                              - service: scene.turn_on
-                                target:
-                                  entity_id: "scene.{{ left_area_name }}_dim"
-                                data:
-                                  transition: 1
+                          - choose:
+                              - conditions: "{{ left_area is not none and (expand(area_entities(left_area)) | selectattr('domain','eq','light') | selectattr('state', 'eq', 'on') | list | count > 0) }}"
+                                sequence:
+                                  - service: light.turn_off
+                                    target:
+                                      area_id: "{{ left_area }}"
+                                    data:
+                                      transition: 1
+                            default:
+                              - if:
+                                  - condition: template
+                                    value_template: "{{ left_area is not none }}"
+                                then:
+                                  - service: scene.turn_on
+                                    target:
+                                      entity_id: "scene.{{ left_area_name }}_dim"
+                                    data:
+                                      transition: 1
             default: [ ]
 
       # Right down (4)
@@ -427,21 +559,46 @@ action:
                         sequence: !input right_down_1x
                     default:
                       - choose:
-                          - conditions: "{{ right_area is not none and (expand(area_entities(right_area)) | selectattr('domain','eq','light') | selectattr('state', 'eq', 'on') | list | count > 0) }}"
+                          - conditions: "{{ right_area is not none and cycle_scenes }}"
                             sequence:
-                              - service: light.turn_off
-                                target:
-                                  area_id: "{{ right_area }}"
-                                data:
-                                  transition: 1
+                              - variables:
+                                  dim_scenes: >
+                                    {{ [
+                                      'scene.' ~ right_area_name ~ '_dim',
+                                      'scene.' ~ right_area_name ~ '_dimmer',
+                                      'scene.' ~ right_area_name ~ '_dimmest'
+                                    ] | select('in', scene_entities) | list }}
+                                  preferred_scene: >
+                                    {% if daytime %}{{ 'scene.' ~ right_area_name ~ '_dim' }}{% else %}{{ 'scene.' ~ right_area_name ~ '_dimmer' }}{% endif %}
+                                  next_scene: >
+                                    {% set current = dim_scenes.index(last_scene) if last_scene in dim_scenes else -1 %}
+                                    {% if not lights_are_on %}{{ dim_scenes[0] if dim_scenes else '' }}{% elif current >= 0 %}{{ dim_scenes[(current + 1) % (dim_scenes | length)] }}{% elif preferred_scene in dim_scenes %}{{ preferred_scene }}{% else %}{{ dim_scenes[0] if dim_scenes else '' }}{% endif %}
+                              - if:
+                                  - condition: template
+                                    value_template: "{{ next_scene != '' }}"
+                                then:
+                                  - service: scene.turn_on
+                                    target:
+                                      entity_id: "{{ next_scene }}"
+                                    data:
+                                      transition: 1
                         default:
-                          - if:
-                              - condition: template
-                                value_template: "{{ right_area is not none }}"
-                            then:
-                              - service: scene.turn_on
-                                target:
-                                  entity_id: "scene.{{ right_area_name }}_dim"
-                                data:
-                                  transition: 1
+                          - choose:
+                              - conditions: "{{ right_area is not none and (expand(area_entities(right_area)) | selectattr('domain','eq','light') | selectattr('state', 'eq', 'on') | list | count > 0) }}"
+                                sequence:
+                                  - service: light.turn_off
+                                    target:
+                                      area_id: "{{ right_area }}"
+                                    data:
+                                      transition: 1
+                            default:
+                              - if:
+                                  - condition: template
+                                    value_template: "{{ right_area is not none }}"
+                                then:
+                                  - service: scene.turn_on
+                                    target:
+                                      entity_id: "scene.{{ right_area_name }}_dim"
+                                    data:
+                                      transition: 1
             default: [ ]

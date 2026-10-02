@@ -45,6 +45,30 @@ blueprint:
       selector:
         area: { }
 
+    cycle_scenes:
+      name: Cycle scenes
+      description: |
+        When enabled, Up and Down use the area's bright/dim scenes instead of
+        the normal scene/off behavior. Bright and dim scene lists wrap at
+        their ends. Enabled by default.
+      default: true
+      selector:
+        boolean: { }
+
+    scene_time_start:
+      name: Scene daytime start
+      description: Preferred brightest/dim scenes are used from this time.
+      default: "10:00:00"
+      selector:
+        time: { }
+
+    scene_time_end:
+      name: Scene daytime end
+      description: Preferred brightest/dim scenes are used until this time.
+      default: "21:00:00"
+      selector:
+        time: { }
+
     any_press_action:
       name: Any press action
       description: |
@@ -134,6 +158,9 @@ variables:
 
   area: !input area
   area_name: "{{ (area_name(area) | default('')) | lower | replace(' ', '_') }}"
+  cycle_scenes: !input cycle_scenes
+  scene_time_start: !input scene_time_start
+  scene_time_end: !input scene_time_end
 
   enable_double_click: !input enable_double_click
   double_click_delay_ms: !input double_click_delay_ms
@@ -237,6 +264,34 @@ action:
 
       delta_ms: "{{ (new_ms - old_ms) | int }}"
       is_double: "{{ enable_double_click and delta_ms >= 1 and delta_ms <= (double_click_delay_ms | int) }}"
+      lights_are_on: "{{ expand(area_entities(area)) | selectattr('domain', 'eq', 'light') | selectattr('state', 'eq', 'on') | list | count > 0 if area else false }}"
+      daytime: >
+        {% set now_time = now().strftime('%H:%M:%S') %}
+        {% if scene_time_start <= scene_time_end %}
+          {{ scene_time_start <= now_time < scene_time_end }}
+        {% else %}
+          {{ now_time >= scene_time_start or now_time < scene_time_end }}
+        {% endif %}
+      scene_entities: >
+        {{ states.scene
+          | selectattr('entity_id', 'in', [
+              'scene.' ~ area_name ~ '_bright',
+              'scene.' ~ area_name ~ '_brighter',
+              'scene.' ~ area_name ~ '_brightest',
+              'scene.' ~ area_name ~ '_dim',
+              'scene.' ~ area_name ~ '_dimmer',
+              'scene.' ~ area_name ~ '_dimmest'
+            ])
+          | map(attribute='entity_id')
+          | list }}
+      last_scene: >
+        {{ (states.scene
+          | selectattr('entity_id', 'in', scene_entities)
+          | sort(attribute='last_changed')
+          | map(attribute='entity_id')
+          | list
+          | last)
+          | default('', true) }}
 
   - choose:
       - conditions: "{{ enable_double_click and not is_double }}"
@@ -262,15 +317,52 @@ action:
                       - conditions: "{{ up_1x != [] }}"
                         sequence: !input up_1x
                     default:
-                      - if:
-                          - condition: template
-                            value_template: "{{ area is not none }}"
-                        then:
-                          - service: scene.turn_on
-                            target:
-                              entity_id: "scene.{{ area_name }}_bright"
-                            data:
-                              transition: 1
+                      - choose:
+                          - conditions: "{{ area is not none and cycle_scenes }}"
+                            sequence:
+                              - variables:
+                                  bright_scenes: >
+                                    {{ [
+                                      'scene.' ~ area_name ~ '_bright',
+                                      'scene.' ~ area_name ~ '_brighter',
+                                      'scene.' ~ area_name ~ '_brightest'
+                                    ] | select('in', scene_entities) | list }}
+                                  preferred_scene: >
+                                    {% if daytime %}
+                                      {{ 'scene.' ~ area_name ~ '_brightest' }}
+                                    {% else %}
+                                      {{ 'scene.' ~ area_name ~ '_bright' }}
+                                    {% endif %}
+                                  next_scene: >
+                                    {% set current = bright_scenes.index(last_scene) if last_scene in bright_scenes else -1 %}
+                                    {% if not lights_are_on %}
+                                      {{ bright_scenes[0] if bright_scenes else '' }}
+                                    {% elif current >= 0 %}
+                                      {{ bright_scenes[(current + 1) % (bright_scenes | length)] }}
+                                    {% elif preferred_scene in bright_scenes %}
+                                      {{ preferred_scene }}
+                                    {% else %}
+                                      {{ bright_scenes[0] if bright_scenes else '' }}
+                                    {% endif %}
+                              - if:
+                                  - condition: template
+                                    value_template: "{{ next_scene != '' }}"
+                                then:
+                                  - service: scene.turn_on
+                                    target:
+                                      entity_id: "{{ next_scene }}"
+                                    data:
+                                      transition: 1
+                        default:
+                          - if:
+                              - condition: template
+                                value_template: "{{ area is not none }}"
+                            then:
+                              - service: scene.turn_on
+                                target:
+                                  entity_id: "scene.{{ area_name }}_bright"
+                                data:
+                                  transition: 1
             default: [ ]
 
       # Down
@@ -286,21 +378,58 @@ action:
                         sequence: !input down_1x
                     default:
                       - choose:
-                          - conditions: "{{ area is not none and (expand(area_entities(area)) | selectattr('domain','eq','light') | selectattr('state', 'eq', 'on') | list | count > 0) }}"
+                          - conditions: "{{ area is not none and cycle_scenes }}"
                             sequence:
-                              - service: light.turn_off
-                                target:
-                                  area_id: "{{ area }}"
-                                data:
-                                  transition: 1
+                              - variables:
+                                  dim_scenes: >
+                                    {{ [
+                                      'scene.' ~ area_name ~ '_dim',
+                                      'scene.' ~ area_name ~ '_dimmer',
+                                      'scene.' ~ area_name ~ '_dimmest'
+                                    ] | select('in', scene_entities) | list }}
+                                  preferred_scene: >
+                                    {% if daytime %}
+                                      {{ 'scene.' ~ area_name ~ '_dim' }}
+                                    {% else %}
+                                      {{ 'scene.' ~ area_name ~ '_dimmer' }}
+                                    {% endif %}
+                                  next_scene: >
+                                    {% set current = dim_scenes.index(last_scene) if last_scene in dim_scenes else -1 %}
+                                    {% if not lights_are_on %}
+                                      {{ dim_scenes[0] if dim_scenes else '' }}
+                                    {% elif current >= 0 %}
+                                      {{ dim_scenes[(current + 1) % (dim_scenes | length)] }}
+                                    {% elif preferred_scene in dim_scenes %}
+                                      {{ preferred_scene }}
+                                    {% else %}
+                                      {{ dim_scenes[0] if dim_scenes else '' }}
+                                    {% endif %}
+                              - if:
+                                  - condition: template
+                                    value_template: "{{ next_scene != '' }}"
+                                then:
+                                  - service: scene.turn_on
+                                    target:
+                                      entity_id: "{{ next_scene }}"
+                                    data:
+                                      transition: 1
                         default:
-                          - if:
-                              - condition: template
-                                value_template: "{{ area is not none }}"
-                            then:
-                              - service: scene.turn_on
-                                target:
-                                  entity_id: "scene.{{ area_name }}_dim"
-                                data:
-                                  transition: 1
+                          - choose:
+                              - conditions: "{{ area is not none and lights_are_on }}"
+                                sequence:
+                                  - service: light.turn_off
+                                    target:
+                                      area_id: "{{ area }}"
+                                    data:
+                                      transition: 1
+                            default:
+                              - if:
+                                  - condition: template
+                                    value_template: "{{ area is not none }}"
+                                then:
+                                  - service: scene.turn_on
+                                    target:
+                                      entity_id: "scene.{{ area_name }}_dim"
+                                    data:
+                                      transition: 1
             default: [ ]

@@ -5,6 +5,10 @@ blueprint:
   description: |
     Blueprint to integrate the Philips Hue Dimmer Switch (ZHA) with Home Assistant.
     Run actions on button presses.
+
+    Enable "Cycle scenes" to use existing _bright/_brighter/_brightest and
+    _dim/_dimmer/_dimmest scenes for short Up/Down presses. With that option
+    disabled, the original brightness-step behavior is unchanged.
   domain: automation
   source_url: https://github.com/sondregronas/hass-blueprints/blob/main/devices/Philips%20Hue%20Dimmer%20Switch%20ZHA.yaml
 
@@ -25,6 +29,30 @@ blueprint:
       description: The area to control. (Only affects default behavior)
       selector:
         area: { }
+
+    cycle_scenes:
+      name: Cycle scenes
+      description: |
+        When enabled, short Up and Down presses use the area's bright/dim
+        scenes instead of changing brightness directly. Bright and dim scene
+        lists wrap at their ends. Enabled by default.
+      default: true
+      selector:
+        boolean: { }
+
+    scene_time_start:
+      name: Scene daytime start
+      description: Preferred brightest/dim scenes are used from this time.
+      default: "10:00:00"
+      selector:
+        time: { }
+
+    scene_time_end:
+      name: Scene daytime end
+      description: Preferred brightest/dim scenes are used until this time.
+      default: "21:00:00"
+      selector:
+        time: { }
 
     optional_action:
       name: Any button pressed action
@@ -119,6 +147,9 @@ variables:
   area_name: "{{ area | lower | replace(' ', '_') }}"
   light_entities: "{{ expand(area_entities(area)) | selectattr('domain', 'eq', 'light') | map(attribute='entity_id') | list }}"
   light_entities_with_hs_color: "{{ expand(light_entities) | selectattr('attributes.hs_color', 'defined') | map(attribute='entity_id') | list }}"
+  cycle_scenes: !input cycle_scenes
+  scene_time_start: !input scene_time_start
+  scene_time_end: !input scene_time_end
 
   optional_action: !input optional_action
 
@@ -149,6 +180,34 @@ condition: [ ]
 action:
   - variables:
       command: '{{ trigger.event.data.command }}'
+      lights_are_on: "{{ expand(light_entities) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
+      daytime: >
+        {% set now_time = now().strftime('%H:%M:%S') %}
+        {% if scene_time_start <= scene_time_end %}
+          {{ scene_time_start <= now_time < scene_time_end }}
+        {% else %}
+          {{ now_time >= scene_time_start or now_time < scene_time_end }}
+        {% endif %}
+      scene_entities: >
+        {{ states.scene
+          | selectattr('entity_id', 'in', [
+              'scene.' ~ area_name ~ '_bright',
+              'scene.' ~ area_name ~ '_brighter',
+              'scene.' ~ area_name ~ '_brightest',
+              'scene.' ~ area_name ~ '_dim',
+              'scene.' ~ area_name ~ '_dimmer',
+              'scene.' ~ area_name ~ '_dimmest'
+            ])
+          | map(attribute='entity_id')
+          | list }}
+      last_scene: >
+        {{ (states.scene
+          | selectattr('entity_id', 'in', scene_entities)
+          | sort(attribute='last_changed')
+          | map(attribute='entity_id')
+          | list
+          | last)
+          | default('', true) }}
 
   - choose:
       - conditions: "{{ optional_action != [] }}"
@@ -237,6 +296,41 @@ action:
           - choose:
               - conditions: "{{ button_up_short_press != [] }}"
                 sequence: !input button_up_short_press
+              - conditions: "{{ cycle_scenes }}"
+                sequence:
+                  - variables:
+                      bright_scenes: >
+                        {{ [
+                          'scene.' ~ area_name ~ '_bright',
+                          'scene.' ~ area_name ~ '_brighter',
+                          'scene.' ~ area_name ~ '_brightest'
+                        ] | select('in', scene_entities) | list }}
+                      preferred_scene: >
+                        {% if daytime %}
+                          {{ 'scene.' ~ area_name ~ '_brightest' }}
+                        {% else %}
+                          {{ 'scene.' ~ area_name ~ '_bright' }}
+                        {% endif %}
+                      next_scene: >
+                        {% set current = bright_scenes.index(last_scene) if last_scene in bright_scenes else -1 %}
+                        {% if not lights_are_on %}
+                          {{ bright_scenes[0] if bright_scenes else '' }}
+                        {% elif current >= 0 %}
+                          {{ bright_scenes[(current + 1) % (bright_scenes | length)] }}
+                        {% elif preferred_scene in bright_scenes %}
+                          {{ preferred_scene }}
+                        {% else %}
+                          {{ bright_scenes[0] if bright_scenes else '' }}
+                        {% endif %}
+                  - if:
+                      - condition: template
+                        value_template: "{{ next_scene != '' }}"
+                    then:
+                      - service: scene.turn_on
+                        target:
+                          entity_id: "{{ next_scene }}"
+                        data:
+                          transition: 1
             default:
               - repeat:
                   for_each: "{{ light_entities }}"
@@ -262,6 +356,41 @@ action:
           - choose:
               - conditions: "{{ button_down_short_press != [] }}"
                 sequence: !input button_down_short_press
+              - conditions: "{{ cycle_scenes }}"
+                sequence:
+                  - variables:
+                      dim_scenes: >
+                        {{ [
+                          'scene.' ~ area_name ~ '_dim',
+                          'scene.' ~ area_name ~ '_dimmer',
+                          'scene.' ~ area_name ~ '_dimmest'
+                        ] | select('in', scene_entities) | list }}
+                      preferred_scene: >
+                        {% if daytime %}
+                          {{ 'scene.' ~ area_name ~ '_dim' }}
+                        {% else %}
+                          {{ 'scene.' ~ area_name ~ '_dimmer' }}
+                        {% endif %}
+                      next_scene: >
+                        {% set current = dim_scenes.index(last_scene) if last_scene in dim_scenes else -1 %}
+                        {% if not lights_are_on %}
+                          {{ dim_scenes[0] if dim_scenes else '' }}
+                        {% elif current >= 0 %}
+                          {{ dim_scenes[(current + 1) % (dim_scenes | length)] }}
+                        {% elif preferred_scene in dim_scenes %}
+                          {{ preferred_scene }}
+                        {% else %}
+                          {{ dim_scenes[0] if dim_scenes else '' }}
+                        {% endif %}
+                  - if:
+                      - condition: template
+                        value_template: "{{ next_scene != '' }}"
+                    then:
+                      - service: scene.turn_on
+                        target:
+                          entity_id: "{{ next_scene }}"
+                        data:
+                          transition: 1
             default:
               - repeat:
                   for_each: "{{ light_entities }}"
