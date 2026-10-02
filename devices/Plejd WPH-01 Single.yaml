@@ -287,7 +287,7 @@ action:
       last_scene: >
         {{ (states.scene
           | selectattr('entity_id', 'in', scene_entities)
-          | sort(attribute='last_changed')
+          | sort(attribute='last_updated')
           | map(attribute='entity_id')
           | list
           | last)
@@ -327,6 +327,12 @@ action:
                                       'scene.' ~ area_name ~ '_brighter',
                                       'scene.' ~ area_name ~ '_brightest'
                                     ] | select('in', scene_entities) | list }}
+                                  dim_scenes: >
+                                    {{ [
+                                      'scene.' ~ area_name ~ '_dim',
+                                      'scene.' ~ area_name ~ '_dimmer',
+                                      'scene.' ~ area_name ~ '_dimmest'
+                                    ] | select('in', scene_entities) | list }}
                                   preferred_scene: >
                                     {% if daytime %}
                                       {{ 'scene.' ~ area_name ~ '_brightest' }}
@@ -334,15 +340,18 @@ action:
                                       {{ 'scene.' ~ area_name ~ '_bright' }}
                                     {% endif %}
                                   next_scene: >
-                                    {% set current = bright_scenes.index(last_scene) if last_scene in bright_scenes else -1 %}
+                                    {% set current = bright_scenes.index(last_scene | trim) if (last_scene | trim) in bright_scenes else -1 %}
+                                    {% set current_dim = dim_scenes.index(last_scene | trim) if (last_scene | trim) in dim_scenes else -1 %}
                                     {% if not lights_are_on %}
                                       {{ bright_scenes[0] if bright_scenes else '' }}
+                                    {% elif current_dim >= 0 %}
+                                      {{ dim_scenes[current_dim - 1] if current_dim > 0 else bright_scenes[0] if bright_scenes else '' }}
                                     {% elif current >= 0 %}
                                       {{ bright_scenes[(current + 1) % (bright_scenes | length)] }}
                                     {% elif preferred_scene in bright_scenes %}
                                       {{ preferred_scene }}
                                     {% else %}
-                                      {{ bright_scenes[0] if bright_scenes else '' }}
+                                      {{ bright_scenes[-1] if bright_scenes and daytime else bright_scenes[0] if bright_scenes else '' }}
                                     {% endif %}
                               - if:
                                   - condition: template
@@ -394,15 +403,15 @@ action:
                                       {{ 'scene.' ~ area_name ~ '_dimmer' }}
                                     {% endif %}
                                   next_scene: >
-                                    {% set current = dim_scenes.index(last_scene) if last_scene in dim_scenes else -1 %}
+                                    {% set current = dim_scenes.index(last_scene | trim) if (last_scene | trim) in dim_scenes else -1 %}
                                     {% if not lights_are_on %}
                                       {{ dim_scenes[0] if dim_scenes else '' }}
                                     {% elif current >= 0 %}
-                                      {{ dim_scenes[(current + 1) % (dim_scenes | length)] }}
+                                      {{ dim_scenes[current + 1] if current + 1 < (dim_scenes | length) else '' }}
                                     {% elif preferred_scene in dim_scenes %}
                                       {{ preferred_scene }}
                                     {% else %}
-                                      {{ dim_scenes[0] if dim_scenes else '' }}
+                                      {{ dim_scenes[0] if dim_scenes and daytime else dim_scenes[-1] if dim_scenes else '' }}
                                     {% endif %}
                               - if:
                                   - condition: template
@@ -413,6 +422,10 @@ action:
                                       entity_id: "{{ next_scene }}"
                                     data:
                                       transition: 1
+                                else:
+                                  - service: light.turn_off
+                                    target:
+                                      area_id: "{{ area }}"
                         default:
                           - choose:
                               - conditions: "{{ area is not none and lights_are_on }}"
