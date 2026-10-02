@@ -81,6 +81,20 @@ blueprint:
       selector:
         time: { }
 
+    modify_bright_scenes_by_time:
+      name: Modify bright scenes based on time of day
+      description: Only affects the first bright scene selected when starting a cycle.
+      default: false
+      selector:
+        boolean: { }
+
+    modify_dim_scenes_by_time:
+      name: Modify dim scenes based on time of day
+      description: Only affects the first dim scene selected when starting a cycle.
+      default: true
+      selector:
+        boolean: { }
+
     any_press_action:
       name: Any press action
       description: |
@@ -155,6 +169,8 @@ variables:
   cycle_scenes: !input cycle_scenes
   scene_time_start: !input scene_time_start
   scene_time_end: !input scene_time_end
+  modify_bright_scenes_by_time: !input modify_bright_scenes_by_time
+  modify_dim_scenes_by_time: !input modify_dim_scenes_by_time
 
   any_press_action: !input any_press_action
 
@@ -263,13 +279,13 @@ action:
                                   'scene.' ~ area_name ~ '_brightest'
                                 ] | select('in', scene_entities) | list }}
                               preferred_scene: >
-                                {% if daytime %}
+                                {% if modify_bright_scenes_by_time and daytime %}
                                   {{ 'scene.' ~ area_name ~ '_brightest' }}
                                 {% else %}
                                   {{ 'scene.' ~ area_name ~ '_bright' }}
                                 {% endif %}
                               next_scene: >
-                                {% set current = bright_scenes.index(last_scene) if last_scene in bright_scenes else -1 %}
+                                {% set current = bright_scenes.index(last_scene | trim) if (last_scene | trim) in bright_scenes else -1 %}
                                 {% if not lights_are_on %}
                                   {{ bright_scenes[0] if bright_scenes else '' }}
                                 {% elif current >= 0 %}
@@ -277,7 +293,7 @@ action:
                                 {% elif preferred_scene in bright_scenes %}
                                   {{ preferred_scene }}
                                 {% else %}
-                                  {{ bright_scenes[-1] if bright_scenes and daytime else bright_scenes[0] if bright_scenes else '' }}
+                                  {{ bright_scenes[-1] if bright_scenes and modify_bright_scenes_by_time and daytime else bright_scenes[0] if bright_scenes else '' }}
                                 {% endif %}
                           - if:
                               - condition: template
@@ -317,13 +333,15 @@ action:
                                   'scene.' ~ area_name ~ '_dimmest'
                                 ] | select('in', scene_entities) | list }}
                               preferred_scene: >
-                                {% if daytime %}
+                                {% if modify_dim_scenes_by_time and daytime %}
                                   {{ 'scene.' ~ area_name ~ '_dim' }}
-                                {% else %}
+                                {% elif modify_dim_scenes_by_time %}
                                   {{ 'scene.' ~ area_name ~ '_dimmer' }}
+                                {% else %}
+                                  {{ 'scene.' ~ area_name ~ '_dim' }}
                                 {% endif %}
                               next_scene: >
-                                {% set current = dim_scenes.index(last_scene) if last_scene in dim_scenes else -1 %}
+                                {% set current = dim_scenes.index(last_scene | trim) if (last_scene | trim) in dim_scenes else -1 %}
                                 {% if not lights_are_on %}
                                   {{ dim_scenes[0] if dim_scenes else '' }}
                                 {% elif current >= 0 %}
@@ -331,7 +349,7 @@ action:
                                 {% elif preferred_scene in dim_scenes %}
                                   {{ preferred_scene }}
                                 {% else %}
-                                  {{ dim_scenes[0] if dim_scenes and daytime else dim_scenes[-1] if dim_scenes else '' }}
+                                  {{ dim_scenes[0] if dim_scenes and modify_dim_scenes_by_time and daytime else dim_scenes[-1] if dim_scenes else '' }}
                                 {% endif %}
                           - if:
                               - condition: template
