@@ -346,6 +346,21 @@ action:
         {% set area_lights = expand(area_entities(area)) | selectattr('domain', 'eq', 'light') | list if area else [] %}
         {% set scene_members = expand(state_attr(last_scene, 'entity_id') or []) if last_scene else [] %}
         {{ (area_lights + scene_members) | selectattr('state', 'eq', 'on') | list | count > 0 }}
+      down_off_cooldown_seconds: 0.5
+      down_off_cooldown_active: >
+        {% set area_lights = expand(area_entities(area)) | selectattr('domain', 'eq', 'light') | list if area else [] %}
+        {% set scene_members = expand(state_attr(last_scene, 'entity_id') or []) if last_scene else [] %}
+        {% set now_ts = as_timestamp(now()) %}
+        {% set ns = namespace(active=false) %}
+        {% if not lights_are_on %}
+          {% for light in area_lights + scene_members %}
+            {% set age = now_ts - as_timestamp(light.last_changed, default=0) %}
+            {% if light.state == 'off' and age >= 0 and age < down_off_cooldown_seconds %}
+              {% set ns.active = true %}
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+        {{ ns.active }}
       # Only continue the ladder when the last activated scene is still on
       scene_index: "{{ scene_ladder.index(last_scene) if lights_are_on and last_scene in scene_ladder else -1 }}"
       start_up_scene: >
@@ -369,7 +384,8 @@ action:
           {{ bright_scenes | first | default('', true) }}
         {% endif %}
       next_down_scene: >
-        {% if scene_index < 0 %}
+        {% if down_off_cooldown_active %}
+        {% elif scene_index < 0 %}
           {{ start_down_scene }}
         {% elif scene_index > 0 %}
           {{ scene_ladder[scene_index - 1] }}
