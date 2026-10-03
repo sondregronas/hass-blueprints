@@ -33,37 +33,38 @@ blueprint:
     cycle_scenes:
       name: Cycle scenes
       description: |
-        When enabled, short Up and Down presses use the area's bright/dim
-        scenes instead of changing brightness directly. Bright and dim scene
-        lists wrap at their ends. Enabled by default.
+        When enabled, Up and Down step through the area's scenes in this order
+        (missing scenes are skipped): dimmest, dimmer, dim, bright, brighter,
+        brightest. Up from brightest wraps to bright, Down from dimmest turns
+        the lights off. Enabled by default.
       default: true
       selector:
         boolean: { }
 
     scene_time_start:
       name: Scene daytime start
-      description: Preferred brightest/dim scenes are used from this time.
-      default: "10:00:00"
+      description: Start of the daytime window used by the time-of-day options below.
+      default: "08:00:00"
       selector:
         time: { }
 
     scene_time_end:
       name: Scene daytime end
-      description: Preferred brightest/dim scenes are used until this time.
+      description: End of the daytime window used by the time-of-day options below.
       default: "21:00:00"
       selector:
         time: { }
 
     modify_bright_scenes_by_time:
       name: Modify bright scenes based on time of day
-      description: Only affects the first bright scene selected when starting a cycle.
+      description: When Up starts a cycle (lights off or no scene active), start at Brightest during the daytime window instead of Bright.
       default: false
       selector:
         boolean: { }
 
     modify_dim_scenes_by_time:
       name: Modify dim scenes based on time of day
-      description: Only affects the first dim scene selected when starting a cycle.
+      description: When Down starts a cycle (lights off or no scene active), start at Dimmest outside the daytime window instead of Dim.
       default: true
       selector:
         boolean: { }
@@ -196,7 +197,6 @@ condition: [ ]
 action:
   - variables:
       command: '{{ trigger.event.data.command }}'
-      lights_are_on: "{{ expand(light_entities) | selectattr('state', 'eq', 'on') | list | count > 0 }}"
       daytime: >
         {% set now_time = now().strftime('%H:%M:%S') %}
         {% if scene_time_start <= scene_time_end %}
@@ -204,30 +204,61 @@ action:
         {% else %}
           {{ now_time >= scene_time_start or now_time < scene_time_end }}
         {% endif %}
-      scene_entities: >
-        {{ states.scene
-          | selectattr('entity_id', 'in', [
-              'scene.' ~ area_name ~ '_bright',
-              'scene.' ~ area_name ~ '_brighter',
-              'scene.' ~ area_name ~ '_brightest',
-              'scene.' ~ area_name ~ '_dim',
-              'scene.' ~ area_name ~ '_dimmer',
-              'scene.' ~ area_name ~ '_dimmest'
-            ])
-          | map(attribute='entity_id')
-          | list }}
-      last_scene: >
-        {{ (states.scene
-          | selectattr('entity_id', 'in', scene_entities)
-          | sort(attribute='last_updated')
-          | map(attribute='entity_id')
-          | list
-          | last)
-          | default('', true) }}
 
   - choose:
       - conditions: "{{ optional_action != [] }}"
         sequence: !input optional_action
+
+  # Position on the scene ladder: dimmest -> brightest (missing scenes are skipped)
+  - variables:
+      scene_prefix: "scene.{{ area_name }}_"
+      existing_scenes: "{{ states.scene | map(attribute='entity_id') | list }}"
+      dim_scenes: "{{ [scene_prefix ~ 'dimmest', scene_prefix ~ 'dimmer', scene_prefix ~ 'dim'] | select('in', existing_scenes) | list }}"
+      bright_scenes: "{{ [scene_prefix ~ 'bright', scene_prefix ~ 'brighter', scene_prefix ~ 'brightest'] | select('in', existing_scenes) | list }}"
+      scene_ladder: "{{ dim_scenes + bright_scenes }}"
+      # A scene's state is the time it was last activated
+      last_scene: >
+        {% set ns = namespace(entity='', activated=0) %}
+        {% for entity_id in scene_ladder %}
+          {% set activated = as_timestamp(states(entity_id), default=0) %}
+          {% if activated > ns.activated %}
+            {% set ns.activated = activated %}
+            {% set ns.entity = entity_id %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.entity }}
+      lights_are_on: >
+        {% set area_lights = expand(light_entities) %}
+        {% set scene_members = expand(state_attr(last_scene, 'entity_id') or []) if last_scene else [] %}
+        {{ (area_lights + scene_members) | selectattr('state', 'eq', 'on') | list | count > 0 }}
+      # Only continue the ladder when the last activated scene is still on
+      scene_index: "{{ scene_ladder.index(last_scene) if lights_are_on and last_scene in scene_ladder else -1 }}"
+      start_up_scene: >
+        {% if modify_bright_scenes_by_time and daytime %}
+          {{ bright_scenes | last | default('', true) }}
+        {% else %}
+          {{ bright_scenes | first | default('', true) }}
+        {% endif %}
+      start_down_scene: >
+        {% if modify_dim_scenes_by_time and not daytime %}
+          {{ dim_scenes | first | default('', true) }}
+        {% else %}
+          {{ dim_scenes | last | default('', true) }}
+        {% endif %}
+      next_up_scene: >
+        {% if scene_index < 0 %}
+          {{ start_up_scene }}
+        {% elif scene_index + 1 < scene_ladder | length %}
+          {{ scene_ladder[scene_index + 1] }}
+        {% else %}
+          {{ bright_scenes | first | default('', true) }}
+        {% endif %}
+      next_down_scene: >
+        {% if scene_index < 0 %}
+          {{ start_down_scene }}
+        {% elif scene_index > 0 %}
+          {{ scene_ladder[scene_index - 1] }}
+        {% endif %}
 
   - choose:
       # ON
@@ -314,58 +345,13 @@ action:
                 sequence: !input button_up_short_press
               - conditions: "{{ cycle_scenes }}"
                 sequence:
-                  - variables:
-                      bright_scenes: >
-                        {{ [
-                          'scene.' ~ area_name ~ '_bright',
-                          'scene.' ~ area_name ~ '_brighter',
-                          'scene.' ~ area_name ~ '_brightest'
-                        ] | select('in', scene_entities) | list }}
-                      dim_scenes: >
-                        {{ [
-                          'scene.' ~ area_name ~ '_dim',
-                          'scene.' ~ area_name ~ '_dimmer',
-                          'scene.' ~ area_name ~ '_dimmest'
-                        ] | select('in', scene_entities) | list }}
-                      preferred_scene: >
-                        {% if modify_bright_scenes_by_time and daytime %}
-                          {% if 'scene.' ~ area_name ~ '_brightest' in bright_scenes %}
-                            {{ 'scene.' ~ area_name ~ '_brightest' }}
-                          {% elif 'scene.' ~ area_name ~ '_brighter' in bright_scenes %}
-                            {{ 'scene.' ~ area_name ~ '_brighter' }}
-                          {% else %}
-                            {{ 'scene.' ~ area_name ~ '_bright' }}
-                          {% endif %}
-                        {% else %}
-                          {% if 'scene.' ~ area_name ~ '_bright' in bright_scenes %}
-                            {{ 'scene.' ~ area_name ~ '_bright' }}
-                          {% elif 'scene.' ~ area_name ~ '_brighter' in bright_scenes %}
-                            {{ 'scene.' ~ area_name ~ '_brighter' }}
-                          {% else %}
-                            {{ 'scene.' ~ area_name ~ '_brightest' }}
-                          {% endif %}
-                        {% endif %}
-                      next_scene: >
-                        {% set current = bright_scenes.index(last_scene | trim) if (last_scene | trim) in bright_scenes else -1 %}
-                        {% set current_dim = dim_scenes.index(last_scene | trim) if (last_scene | trim) in dim_scenes else -1 %}
-                        {% if not lights_are_on %}
-                          {{ bright_scenes[0] if bright_scenes else '' }}
-                        {% elif current_dim >= 0 %}
-                          {{ dim_scenes[current_dim - 1] if current_dim > 0 else bright_scenes[0] if bright_scenes else '' }}
-                        {% elif current >= 0 %}
-                          {{ bright_scenes[(current + 1) % (bright_scenes | length)] }}
-                        {% elif preferred_scene in bright_scenes %}
-                          {{ preferred_scene }}
-                        {% else %}
-                          {{ bright_scenes[-1] if bright_scenes and modify_bright_scenes_by_time and daytime else bright_scenes[0] if bright_scenes else '' }}
-                        {% endif %}
                   - if:
                       - condition: template
-                        value_template: "{{ next_scene != '' }}"
+                        value_template: "{{ next_up_scene != '' }}"
                     then:
                       - service: scene.turn_on
                         target:
-                          entity_id: "{{ next_scene }}"
+                          entity_id: "{{ next_up_scene }}"
                         data:
                           transition: 1
             default:
@@ -395,51 +381,13 @@ action:
                 sequence: !input button_down_short_press
               - conditions: "{{ cycle_scenes }}"
                 sequence:
-                  - variables:
-                      dim_scenes: >
-                        {{ [
-                          'scene.' ~ area_name ~ '_dim',
-                          'scene.' ~ area_name ~ '_dimmer',
-                          'scene.' ~ area_name ~ '_dimmest'
-                        ] | select('in', scene_entities) | list }}
-                      preferred_scene: >
-                        {% if modify_dim_scenes_by_time and daytime %}
-                          {% if 'scene.' ~ area_name ~ '_dim' in dim_scenes %}
-                            {{ 'scene.' ~ area_name ~ '_dim' }}
-                          {% elif 'scene.' ~ area_name ~ '_dimmer' in dim_scenes %}
-                            {{ 'scene.' ~ area_name ~ '_dimmer' }}
-                          {% else %}
-                            {{ 'scene.' ~ area_name ~ '_dimmest' }}
-                          {% endif %}
-                        {% elif modify_dim_scenes_by_time %}
-                          {% if 'scene.' ~ area_name ~ '_dimmer' in dim_scenes %}
-                            {{ 'scene.' ~ area_name ~ '_dimmer' }}
-                          {% elif 'scene.' ~ area_name ~ '_dimmest' in dim_scenes %}
-                            {{ 'scene.' ~ area_name ~ '_dimmest' }}
-                          {% else %}
-                            {{ 'scene.' ~ area_name ~ '_dim' }}
-                          {% endif %}
-                        {% else %}
-                          {{ 'scene.' ~ area_name ~ '_dim' }}
-                        {% endif %}
-                      next_scene: >
-                        {% set current = dim_scenes.index(last_scene | trim) if (last_scene | trim) in dim_scenes else -1 %}
-                        {% if not lights_are_on %}
-                          {{ dim_scenes[0] if dim_scenes else '' }}
-                        {% elif current >= 0 %}
-                          {{ dim_scenes[current + 1] if current + 1 < (dim_scenes | length) else '' }}
-                        {% elif preferred_scene in dim_scenes %}
-                          {{ preferred_scene }}
-                        {% else %}
-                          {{ dim_scenes[0] if dim_scenes else '' }}
-                        {% endif %}
                   - if:
                       - condition: template
-                        value_template: "{{ next_scene != '' }}"
+                        value_template: "{{ next_down_scene != '' }}"
                     then:
                       - service: scene.turn_on
                         target:
-                          entity_id: "{{ next_scene }}"
+                          entity_id: "{{ next_down_scene }}"
                         data:
                           transition: 1
                     else:
