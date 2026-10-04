@@ -70,6 +70,32 @@ blueprint:
       selector:
         time: { }
 
+    scene_time_start_helper:
+      name: Scene daytime start helper (optional)
+      description: >
+        Optional input_datetime helper overriding Scene daytime start. If left
+        blank, the blueprint looks for input_datetime.scene_cycling_time_start.
+        Create that helper to use a shared default. If the selected/default
+        helper is missing, unavailable, or has no time, Scene daytime start is
+        used instead.
+      default: null
+      selector:
+        entity:
+          domain: input_datetime
+
+    scene_time_end_helper:
+      name: Scene daytime end helper (optional)
+      description: >
+        Optional input_datetime helper overriding Scene daytime end. If left
+        blank, the blueprint looks for input_datetime.scene_cycling_time_end.
+        Create that helper to use a shared default. If the selected/default
+        helper is missing, unavailable, or has no time, Scene daytime end is
+        used instead.
+      default: null
+      selector:
+        entity:
+          domain: input_datetime
+
     modify_bright_scenes_by_time:
       name: Modify bright scenes based on time of day
       description: When Up starts a cycle (lights off or no scene active), start at Brightest during the daytime window instead of Bright.
@@ -176,6 +202,24 @@ variables:
   cycle_scenes: !input cycle_scenes
   scene_time_start: !input scene_time_start
   scene_time_end: !input scene_time_end
+  scene_time_start_helper: !input scene_time_start_helper
+  scene_time_end_helper: !input scene_time_end_helper
+  effective_scene_time_start_helper: "{{ scene_time_start_helper if scene_time_start_helper else 'input_datetime.scene_cycling_time_start' }}"
+  effective_scene_time_end_helper: "{{ scene_time_end_helper if scene_time_end_helper else 'input_datetime.scene_cycling_time_end' }}"
+  effective_scene_time_start: >
+    {% set helper_state = states(effective_scene_time_start_helper) %}
+    {% if helper_state not in ['', 'unknown', 'unavailable', 'none'] and state_attr(effective_scene_time_start_helper, 'has_time') %}
+      {{ helper_state[-8:] }}
+    {% else %}
+      {{ scene_time_start }}
+    {% endif %}
+  effective_scene_time_end: >
+    {% set helper_state = states(effective_scene_time_end_helper) %}
+    {% if helper_state not in ['', 'unknown', 'unavailable', 'none'] and state_attr(effective_scene_time_end_helper, 'has_time') %}
+      {{ helper_state[-8:] }}
+    {% else %}
+      {{ scene_time_end }}
+    {% endif %}
   modify_bright_scenes_by_time: !input modify_bright_scenes_by_time
   modify_dim_scenes_by_time: !input modify_dim_scenes_by_time
 
@@ -307,10 +351,10 @@ action:
       is_double: "{{ enable_double_click and delta_ms >= 1 and delta_ms <= (double_click_delay_ms | int) }}"
       daytime: >
         {% set now_time = now().strftime('%H:%M:%S') %}
-        {% if scene_time_start <= scene_time_end %}
-          {{ scene_time_start <= now_time < scene_time_end }}
+        {% if effective_scene_time_start <= effective_scene_time_end %}
+          {{ effective_scene_time_start <= now_time < effective_scene_time_end }}
         {% else %}
-          {{ now_time >= scene_time_start or now_time < scene_time_end }}
+          {{ now_time >= effective_scene_time_start or now_time < effective_scene_time_end }}
         {% endif %}
 
   - choose:
