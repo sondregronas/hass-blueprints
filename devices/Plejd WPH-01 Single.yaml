@@ -168,6 +168,20 @@ blueprint:
           unit_of_measurement: ms
           mode: slider
 
+    press_debounce_ms:
+      name: Press debounce (ms)
+      description: |
+        Ignores repeated button reports that arrive within this time.
+        Useful when the integration reports the same physical press twice.
+      default: 100
+      selector:
+        number:
+          min: 20
+          max: 500
+          step: 10
+          unit_of_measurement: ms
+          mode: slider
+
     double_click_actions:
       name: Double click actions
       collapsed: true
@@ -225,6 +239,7 @@ variables:
 
   enable_double_click: !input enable_double_click
   double_click_delay_ms: !input double_click_delay_ms
+  press_debounce_ms: !input press_debounce_ms
 
   up_1x: !input up_1x
   down_1x: !input down_1x
@@ -324,6 +339,8 @@ condition:
       }}
 
 action:
+  - delay:
+      milliseconds: "{{ press_debounce_ms }}"
   - variables:
       triggering_entity: "{{ trigger.event.data.entity_id }}"
       button_id: >
